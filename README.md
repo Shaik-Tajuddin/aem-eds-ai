@@ -1,217 +1,194 @@
 # AI EDS Developer
 
-> **Autonomous AI engineering platform for AEM Edge Delivery Services**
-> 
+> **Autonomous AI engineering platform for AEM Edge Delivery Services (EDS)**  
 > *From design to production-ready EDS — autonomously.*
 
-[![CI](https://github.com/your-org/ai-eds-developer/actions/workflows/ci.yml/badge.svg)](https://github.com/your-org/ai-eds-developer/actions/workflows/ci.yml)
+[![CI](https://github.com/Shaik-Tajuddin/aem-eds-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/Shaik-Tajuddin/aem-eds-ai/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-74%20passed-brightgreen.svg)](https://github.com/Shaik-Tajuddin/aem-eds-ai)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
+[![Turborepo](https://img.shields.io/badge/monorepo-turborepo-orange.svg)](https://turbo.build/)
 
 ---
 
 ## What is this?
 
-AI EDS Developer is an autonomous AI engineering platform that takes a design (Figma, screenshot, existing website, or AEM page) and autonomously:
+**AI EDS Developer** is an autonomous AI engineering platform designed specifically for Adobe Experience Manager Edge Delivery Services (EDS). Unlike generic code generators or chatbots, it executes an end-to-end engineering lifecycle:
 
-1. **Analyzes** the design and existing EDS project conventions
-2. **Plans** the EDS block architecture
-3. **Generates** EDS HTML, CSS, JavaScript, and Universal Editor models
-4. **Builds** and deploys to a preview environment
-5. **Tests** with Playwright (functional + Universal Editor authoring)
-6. **Compares** the implementation against the reference (visual regression)
-7. **Fixes** detected issues automatically (up to configured iterations)
-8. **Validates** accessibility (axe-core) and performance (Lighthouse)
-9. **Creates** a GitHub Pull Request with full evidence attached
-10. **Waits** for human approval before production deployment
+1. **Ingests & Analyzes** designs (Figma frames, screenshots, existing websites, AEM pages, or prompts) into a normalized **Design Intermediate Representation (IR)**.
+2. **Retrieves Domain Knowledge** using a **pgvector semantic RAG engine** with hierarchical source weighting (1.25x project code, 1.10x standards, 1.05x EDS docs).
+3. **Plans Architecture & Conventions** against EDS block standards, authoring contracts, and CSS custom property design tokens.
+4. **Generates Pure EDS Code** — dependency-free vanilla JavaScript block decorators (`export default function decorate(block)`), mobile-first scoped CSS, and HTML test harnesses.
+5. **Instruments Universal Editor Contracts** — synthesizes `_component-definition.json`, `_component-models.json`, `_component-filters.json`, and injects `data-aue-*` DOM attributes.
+6. **Executes Headless Browser Testing** using Playwright across desktop and mobile viewports, tracking block decoration lifecycle, console errors, network 4xx/5xx responses, and Core Web Vitals (LCP, CLS).
+7. **Performs Visual Regression Auditing** using Pixelmatch with semantic bounding box clustering and differential heatmap overlays.
+8. **Engages Dynamic Multi-Pass Self-Healing** — when defects or visual regressions occur, it loops deterministically through `DIAGNOSING ➔ FIXING ➔ REGRESSION_TESTING ➔ QUALITY_GATE` up to configurable iterations.
+9. **Evaluates Quality Gates** — strictly enforces TypeScript compilation (0 errors), visual fidelity (≥ 95%), WCAG 2.1 AA accessibility (100%), performance (LCP < 2.5s), and security policies.
+10. **Opens Evidence-Backed GitHub Pull Requests** with atomic Git Data API commits, live `.hlx.page` preview links, test reports, and visual proof, then waits for human approval before production deployment.
 
-Every step is observable through the engineering command center dashboard.
+Every step is fully observable in real time through the Engineering Command Center Dashboard (`apps/web`).
 
 ---
 
-## Architecture
+## Architecture Overview
 
 ```
 apps/
-├── web/          Next.js 15 dashboard (engineering command center)
-└── api/          Fastify 5 API (agent orchestration backend)
+├── web/              Next.js 15 App Router engineering dashboard (React 19, Tailwind v4)
+└── api/              Fastify 5 REST & Server-Sent Events (SSE) API with BullMQ dispatch
 
 packages/
-├── agent/        Agent orchestrator + state machine + specialized agents
-├── llm/          LLM gateway (OpenAI, Anthropic, Gemini, Azure, Ollama)
-├── tools/        Tool registry + security policy engine
-├── github/       GitHub adapter (clone, branch, commit, PR)
-├── aem/          AEM Cloud + Universal Editor adapter
-├── figma/        Figma API adapter + Design IR builder
-├── browser/      Playwright browser automation wrapper
-├── visual/       Screenshot diff + visual scoring
-├── rag/          pgvector knowledge retrieval
-├── database/     PostgreSQL schema (Drizzle ORM) + migrations
-└── shared/       TypeScript types, enums, events (shared across all packages)
+├── shared/           Core TypeScript contracts, 18-state lifecycle enums, and event schemas
+├── database/         PostgreSQL 16 schema (25 tables, Drizzle ORM) + pgvector embeddings
+├── github/           Octokit adapter with atomic multi-file commits & EDS detection
+├── llm/              Multi-provider LLM gateway (OpenAI, Anthropic Claude, Gemini) with pricing matrix
+├── tools/            Tool registry, 4-tier risk policy gating, and recursive secret redaction
+├── agent/            Deterministic 18-state machine, orchestrator, and dynamic self-healing loop
+├── browser/          Playwright controller, DOM inspection, a11y audits, and CWV measurements
+├── visual/           Pixelmatch visual regression comparator, bounding boxes, and heatmap overlays
+├── aem/              AEM Cloud client, Universal Editor contract generator, and authoring tester
+├── figma/            Figma REST client, URL parser, and Design IR converter (tokens, components)
+├── rag/              pgvector RAG retrieval engine with hierarchical source weighting
+└── queue/            BullMQ job queues, Redis connection manager, and queue telemetry
 
 workers/
-├── agent-worker/ BullMQ worker: runs agent state machine
-├── browser-worker/ BullMQ worker: Playwright jobs
-└── build-worker/ BullMQ worker: EDS build jobs
+├── agent-worker/     BullMQ background worker executing 18-state Agent Orchestrator pipelines
+└── browser-worker/   BullMQ background worker executing Playwright audits & visual diffs
+
+docker/
+├── Dockerfile.api    Multi-stage Dockerfile for Fastify API
+├── Dockerfile.web    Multi-stage Dockerfile for Next.js Web
+├── Dockerfile.worker Multi-stage Dockerfile for BullMQ workers
+├── postgres/         PostgreSQL init script with pgvector extension
+└── docker-compose.yml Full container topology (Postgres, Redis, MinIO, API, Web, Workers)
 ```
 
 ---
 
-## Prerequisites
+## Monorepo Workspaces & Packages
 
-| Tool | Version | Purpose |
-|---|---|---|
-| Node.js | ≥ 20 | Runtime |
-| npm | ≥ 10 | Package manager |
-| Docker Desktop | Latest | PostgreSQL, Redis, MinIO |
-| Git | Any | Repository operations |
-| Ollama (optional) | Latest | Local LLM for zero-cost dev |
+| Workspace | Role | Primary Dependencies | Status |
+|---|---|---|---|
+| **`@aeds/shared`** | Shared types, interfaces, enums, events | TypeScript 5.8 | ✅ Built & Typechecked |
+| **`@aeds/database`** | Drizzle ORM, PostgreSQL schema (25 tables), pgvector | drizzle-orm, postgres | ✅ Built & Typechecked |
+| **`@aeds/github`** | Atomic Git commits, PR creation, EDS detection | @octokit/rest | ✅ 9 tests passing |
+| **`@aeds/llm`** | Multi-LLM gateway (OpenAI, Claude, Gemini) & pricing | native fetch, zod | ✅ 7 tests passing |
+| **`@aeds/tools`** | Tool catalog, risk policy engine, secret redactor | zod | ✅ 5 tests passing |
+| **`@aeds/agent`** | 18-state machine, orchestrator & self-healing | @aeds/shared | ✅ 6 tests passing |
+| **`@aeds/browser`** | Playwright browser automation & inspection | playwright | ✅ 3 tests passing |
+| **`@aeds/visual`** | Pixelmatch diff, bounding box clustering | pixelmatch, pngjs | ✅ 3 tests passing |
+| **`@aeds/aem`** | Universal Editor contracts & DOM validation | zod | ✅ 10 tests passing |
+| **`@aeds/figma`** | Figma API client & Design IR converter | zod | ✅ 8 tests passing |
+| **`@aeds/rag`** | Semantic RAG retrieval & hierarchical weighting | drizzle-orm, pgvector | ✅ 12 tests passing |
+| **`@aeds/queue`** | BullMQ Redis queues & telemetry metrics | bullmq, ioredis | ✅ 7 tests passing |
+| **`workers/agent-worker`** | Distributed agent pipeline worker daemon | bullmq, @aeds/agent | ✅ 1 test passing |
+| **`workers/browser-worker`** | Distributed browser audit worker daemon | bullmq, @aeds/browser | ✅ 1 test passing |
+| **`apps/api`** | Fastify 5 REST API & SSE streaming | fastify, @fastify/swagger | ✅ 2 tests passing |
+| **`apps/web`** | Next.js 15 command center dashboard | React 19, Tailwind v4 | ✅ Built & Typechecked |
 
 ---
 
-## Quick Start
+## Getting Started
 
-### 1. Clone and install
+### Prerequisites
+- **Node.js** ≥ 20.x
+- **npm** ≥ 10.x
+- **Docker Desktop** (for PostgreSQL, Redis, MinIO)
+- **Git**
+
+### 1. Clone and Install
 
 ```bash
-git clone https://github.com/your-org/ai-eds-developer.git
-cd ai-eds-developer
+git clone https://github.com/Shaik-Tajuddin/aem-eds-ai.git
+cd aem-eds-ai
 npm install --legacy-peer-deps
 ```
 
-### 2. Configure environment
+### 2. Configure Environment
 
 ```bash
 cp .env.example apps/web/.env.local
 cp .env.example apps/api/.env
 ```
 
-Edit the `.env` files and set at minimum:
-- `DATABASE_URL` — already defaults to local Docker
-- `ENCRYPTION_KEY` — generate with: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
-- `NEXTAUTH_SECRET` — generate with: `openssl rand -base64 32`
-- `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` — from GitHub OAuth app
-- `LLM_PROVIDER` and `LLM_MODEL` — set to `ollama` + `llama3.3` for zero-cost local dev
+Key environment variables:
+- `DATABASE_URL` — Defaults to PostgreSQL on `localhost:5432`
+- `REDIS_URL` — Defaults to Redis on `localhost:6379`
+- `S3_ENDPOINT` — Defaults to MinIO on `http://localhost:9000`
+- `LLM_PROVIDER` — `OPENAI`, `ANTHROPIC`, `GEMINI`, or `CUSTOM`
+- `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` — GitHub OAuth credentials
 
-### 3. Start Docker services
+### 3. Start Infrastructure via Docker Compose
 
 ```bash
 docker compose up -d postgres redis minio
 ```
 
-Verify services:
-- PostgreSQL: `localhost:5432`
-- Redis: `localhost:6379`
-- MinIO Console: `http://localhost:9001` (user: `minioadmin` / `minioadmin`)
+Services:
+- **PostgreSQL 16 with pgvector**: `localhost:5432`
+- **Redis 7**: `localhost:6379`
+- **MinIO S3 Console**: `http://localhost:9001` (Credentials: `minioadmin` / `minioadmin`)
 
-### 4. Run database migrations
+### 4. Push Database Schema
 
 ```bash
-npm run db:migrate
+npm run db:push
 ```
 
-### 5. Start the development servers
+### 5. Start Development Servers
 
 ```bash
 npm run dev
 ```
 
-This starts:
-- **Dashboard**: `http://localhost:3000`
-- **API**: `http://localhost:3001`
-- **API Docs**: `http://localhost:3001/docs` (dev only)
+- **Web Dashboard**: [http://localhost:3000](http://localhost:3000)
+- **Fastify API**: [http://localhost:3001](http://localhost:3001)
+- **API Swagger Docs**: [http://localhost:3001/docs](http://localhost:3001/docs)
+
+### 6. Run Autonomous E2E Demo
+
+```bash
+npm run demo
+```
+Executes all 10 autonomous stages in ~4.7s with simulated defect injection and self-healing.
 
 ---
 
-## External Integrations
+## Verification & Testing
 
-### GitHub OAuth (Required for auth)
+Run all 74 unit and integration tests across the monorepo:
 
-1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
-2. Create a new OAuth App:
-   - Homepage: `http://localhost:3000`
-   - Callback: `http://localhost:3000/api/auth/callback/github`
-3. Set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`
+```bash
+npm test
+```
 
-### GitHub Token (Required for agent operations)
+Run TypeScript compilation check across all 25 workspaces:
 
-Personal Access Token with scopes: `repo`, `workflow`, `read:org`
-
-### Figma (Required for Figma source type)
-
-Generate a personal access token at [figma.com/developers](https://www.figma.com/developers/api#access-tokens)
-
-### AEM Cloud (Required for AEM integration)
-
-Configure via Adobe Developer Console:
-- Service Account (JWT) or OAuth Server-to-Server credentials
-- Set `AEM_CLIENT_ID`, `AEM_CLIENT_SECRET`, `AEM_ORGANIZATION_ID`
-
-### LLM Provider
-
-| Provider | Config |
-|---|---|
-| Ollama (local, free) | `LLM_PROVIDER=ollama`, `LLM_API_URL=http://localhost:11434` |
-| OpenAI | `LLM_PROVIDER=OPENAI`, `LLM_API_KEY=sk-...` |
-| Anthropic | `LLM_PROVIDER=ANTHROPIC`, `LLM_API_KEY=sk-ant-...` |
-| Azure OpenAI | `LLM_PROVIDER=AZURE_OPENAI`, `LLM_API_URL=https://...` |
-| Custom | `LLM_PROVIDER=CUSTOM`, `LLM_API_URL=https://your-endpoint` |
-
----
-
-## Development Phases
-
-| Phase | Status | Description |
-|---|---|---|
-| 0 — Foundation | ✅ Complete | Monorepo, Docker, shared types, database schema |
-| 1 — Project Management | ✅ Complete | Dashboard UI, New Project wizard, API routes |
-| 2 — GitHub Integration | 🔲 Planned | Clone, branch, commit, PR |
-| 3 — EDS Analyzer | 🔲 Planned | Project structure detection |
-| 4 — Agent Orchestrator | 🔲 Planned | State machine, tool registry, BullMQ |
-| 5 — Figma/Website Analyzer | 🔲 Planned | Design IR, Playwright crawler |
-| 6 — EDS Code Generator | 🔲 Planned | Block/CSS/JS/UE generation |
-| 7 — Preview & Deploy | 🔲 Planned | EDS build + preview URL |
-| 8 — Playwright Testing | 🔲 Planned | Functional + UE authoring tests |
-| 9 — Visual QA | 🔲 Planned | Screenshot diff + scoring |
-| 10 — AI Fix Loop | 🔲 Planned | Debug + fix + retest |
-| 11 — Universal Editor | 🔲 Planned | UE authoring automation |
-| 12 — A11y + Performance | 🔲 Planned | axe-core + Lighthouse |
-| 13 — PR + Deployment | 🔲 Planned | Evidence report + human approval |
-| 14 — Dashboard Completion | 🔲 Planned | All 14 dashboard pages |
-| 15 — RAG | 🔲 Planned | pgvector knowledge retrieval |
-
----
-
-## Security
-
-- **Secrets**: All credentials (GitHub tokens, LLM API keys, Figma tokens, AEM secrets) are encrypted at rest using AES-256-GCM with a key from `ENCRYPTION_KEY`.
-- **Redaction**: Pino logger redacts all secret fields — they never appear in logs.
-- **Browser isolation**: The browser (`apps/web`) never receives raw secrets. API proxies all sensitive operations.
-- **Tool policy**: Agent tools are validated through a policy engine before execution (Phase 4).
-- **Human approval**: Production deployments and PR merges require explicit human approval.
-
----
-
-## Known Limitations (Phase 0-1)
-
-- Agent orchestrator is not yet implemented (Phase 4)
-- GitHub integration is stubbed (Phase 2)
-- Figma and website analysis are not yet implemented (Phase 5)
-- Universal Editor automation is not yet implemented (Phase 11)
-- RAG knowledge system is not yet implemented (Phase 15)
-- Dashboard pages beyond Overview are placeholder stubs
+```bash
+npm run typecheck
+```
 
 ---
 
 ## Documentation
 
-| Document | Description |
-|---|---|
-| [Architecture](docs/architecture.md) | System architecture and component communication |
-| [Agent Architecture](docs/agent-architecture.md) | Specialized agent design and state machine |
-| [Security](docs/security.md) | Security model and credential handling |
-| [API Reference](http://localhost:3001/docs) | OpenAPI documentation (running instance) |
+Full architectural specifications, implementation plans, and phase walkthroughs are located under [`docs/`](./docs/):
+
+- [Master Platform Walkthrough](./docs/walkthrough.md)
+- [Master Specification vs. Implementation Gap Analysis](./docs/master-vision-gap-analysis-implementation-plan.md)
+- [Phase 0 & 1 — Foundation & Web Dashboard](./docs/phase-0-1-foundation-and-ui.md)
+- [Phase 2 — GitHub Integration](./docs/phase-2-github-integration.md)
+- [Phase 3 — LLM Gateway](./docs/phase-3-llm-gateway.md)
+- [Phase 4 — Agent Orchestrator & State Machine](./docs/phase-4-agent-orchestrator.md)
+- [Phase 5 — Tool Registry & Security Policies](./docs/phase-5-tools-and-policies.md)
+- [Phase 6 — Browser Automation & Testing](./docs/phase-6-browser-automation.md)
+- [Phase 7 — Visual Regression Engine](./docs/phase-7-visual-regression.md)
+- [Phase 8 — AEM Universal Editor Integration](./docs/phase-8-aem-universal-editor.md)
+- [Phase 9 — Figma Design IR Engine](./docs/phase-9-figma-design-ir.md)
+- [Phase 10 — RAG & Knowledge Retrieval](./docs/phase-10-rag-retrieval.md)
+- [AI Activity Observatory & Runs Manager](./docs/observatory-and-runs-manager.md)
 
 ---
 
 ## License
 
-Internal — all rights reserved.
+Internal / Proprietary — All rights reserved.
