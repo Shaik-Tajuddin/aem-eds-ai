@@ -12,6 +12,7 @@ Welcome to the technical reference and walkthrough documentation for the **AI ED
 | Document | Description | Status |
 |---|---|---|
 | [**Master Walkthrough**](./walkthrough.md) | Comprehensive overview of all 14 completed capabilities, architecture, test results, and live views | ✅ Verified |
+| [**Environment Variables Guide**](./environment-variables-setup.md) | Complete inventory, requirements matrix, and step-by-step credentials acquisition guide | 🔐 Reference |
 | [**Master Implementation Plan**](./implementation-plan.md) | Phased execution roadmap, non-negotiable requirements, and architectural milestones | 📋 Reference |
 | [**Master Vision & Gap Analysis**](./master-vision-gap-analysis-implementation-plan.md) | Capability comparison matrix against `MASTER BUILD PROMPT.md` and `Product Vision.md` | ✅ Complete |
 | [**Phase 0 & 1 — Foundation & Dashboard UI**](./phase-0-1-foundation-and-ui.md) | Monorepo setup, Turborepo, Docker stack, Drizzle ORM (25 tables), Next.js 15 UI, 7-step wizard | ✅ Complete |
