@@ -15,75 +15,87 @@ import {
   ArrowUpDown,
   Filter,
   Terminal,
+  RefreshCw,
+  Plus,
+  ExternalLink,
+  ChevronRight,
+  Info,
+  Copy,
+  Check,
+  Zap,
 } from 'lucide-react';
 
 interface KnowledgeDocItem {
   id: string;
   title: string;
   source: string;
-  sourceType: 'project-code' | 'project-docs' | 'standards' | 'eds-docs' | 'aem-docs' | 'general';
+  sourceType: 'project-code' | 'project-docs' | 'standards' | 'eds-docs' | 'aem-docs';
   chunksCount: number;
   tokensCount: number;
   updatedAt: string;
+  status: 'indexed' | 'syncing';
 }
 
 interface SimulatedChunk {
   id: string;
   title: string;
   source: string;
-  sourceType: 'project-code' | 'project-docs' | 'standards' | 'eds-docs' | 'aem-docs' | 'general';
+  sourceType: 'project-code' | 'project-docs' | 'standards' | 'eds-docs' | 'aem-docs';
   heading: string;
-  language?: string;
+  language: string;
   codeSnippet: string;
   keywords: string[];
   baseSimilarity: number;
 }
 
-const SOURCE_WEIGHTS: Record<string, number> = {
-  'project-code': 1.25,
-  'project-docs': 1.15,
-  standards: 1.10,
-  'eds-docs': 1.05,
-  'aem-docs': 1.05,
-  general: 1.0,
+const SOURCE_WEIGHTS: Record<string, { weight: number; label: string; color: string }> = {
+  'project-code': { weight: 1.25, label: 'Project Code (1.25x)', color: '#10b981' },
+  'project-docs': { weight: 1.15, label: 'Project Docs (1.15x)', color: '#06b6d4' },
+  standards: { weight: 1.10, label: 'Standards (1.10x)', color: '#3b82f6' },
+  'eds-docs': { weight: 1.05, label: 'EDS Docs (1.05x)', color: '#8b5cf6' },
+  'aem-docs': { weight: 1.05, label: 'AEM Docs (1.05x)', color: '#f59e0b' },
 };
 
 const KNOWLEDGE_DOCS: KnowledgeDocItem[] = [
   {
     id: 'doc-1',
-    title: 'Hero Block Decorator',
+    title: 'Hero Block Decorator & Auto-Picture',
     source: 'blocks/hero/hero.js',
     sourceType: 'project-code',
     chunksCount: 6,
     tokensCount: 1420,
-    updatedAt: '2026-09-05 18:20',
+    updatedAt: '2026-09-06 04:30',
+    status: 'indexed',
   },
   {
     id: 'doc-2',
-    title: 'Cards Block Component',
+    title: 'Cards Block Component & Grid Layout',
     source: 'blocks/cards/cards.js',
     sourceType: 'project-code',
     chunksCount: 8,
     tokensCount: 1890,
-    updatedAt: '2026-09-05 19:15',
+    updatedAt: '2026-09-06 04:15',
+    status: 'indexed',
   },
   {
     id: 'doc-3',
-    title: 'Header Navigation & Hamburger',
+    title: 'Header Navigation & Mobile Drawer',
     source: 'blocks/header/header.js',
     sourceType: 'project-code',
     chunksCount: 12,
     tokensCount: 2650,
-    updatedAt: '2026-09-05 19:40',
+    updatedAt: '2026-09-06 03:40',
+    status: 'indexed',
   },
   {
     id: 'doc-4',
-    title: 'Franklin Design System Tokens',
+    title: 'Franklin Design System Tokens & Typography',
     source: 'styles/styles.css',
     sourceType: 'standards',
     chunksCount: 14,
     tokensCount: 3200,
-    updatedAt: '2026-09-05 17:00',
+    updatedAt: '2026-09-06 02:00',
+    status: 'indexed',
   },
   {
     id: 'doc-5',
@@ -92,7 +104,8 @@ const KNOWLEDGE_DOCS: KnowledgeDocItem[] = [
     sourceType: 'standards',
     chunksCount: 9,
     tokensCount: 2150,
-    updatedAt: '2026-09-05 16:30',
+    updatedAt: '2026-09-05 23:30',
+    status: 'indexed',
   },
   {
     id: 'doc-6',
@@ -101,7 +114,8 @@ const KNOWLEDGE_DOCS: KnowledgeDocItem[] = [
     sourceType: 'eds-docs',
     chunksCount: 18,
     tokensCount: 4500,
-    updatedAt: '2026-09-05 15:10',
+    updatedAt: '2026-09-05 21:10',
+    status: 'indexed',
   },
   {
     id: 'doc-7',
@@ -111,6 +125,7 @@ const KNOWLEDGE_DOCS: KnowledgeDocItem[] = [
     chunksCount: 15,
     tokensCount: 3800,
     updatedAt: '2026-09-05 20:00',
+    status: 'indexed',
   },
 ];
 
@@ -122,8 +137,8 @@ const SIMULATED_CHUNKS: SimulatedChunk[] = [
     sourceType: 'project-code',
     heading: 'Decorator Function & Picture Optimization',
     language: 'javascript',
-    keywords: ['hero', 'button', 'banner', 'image', 'picture', 'decorate'],
-    baseSimilarity: 0.89,
+    keywords: ['hero', 'button', 'banner', 'image', 'picture', 'decorate', 'cta'],
+    baseSimilarity: 0.92,
     codeSnippet: `export default function decorate(block) {
   const heading = block.querySelector('h1, h2, h3');
   const picture = block.querySelector('picture');
@@ -141,8 +156,8 @@ const SIMULATED_CHUNKS: SimulatedChunk[] = [
     sourceType: 'standards',
     heading: 'Brand Color Variables & Typography Tokens',
     language: 'css',
-    keywords: ['css', 'variables', 'typography', 'color', 'tokens', 'buttons'],
-    baseSimilarity: 0.85,
+    keywords: ['css', 'variables', 'typography', 'color', 'tokens', 'buttons', 'hero'],
+    baseSimilarity: 0.88,
     codeSnippet: `:root {
   --heading-font-family: 'Inter', sans-serif;
   --body-font-family: 'Inter', sans-serif;
@@ -177,16 +192,16 @@ const SIMULATED_CHUNKS: SimulatedChunk[] = [
     title: 'Universal Editor Component Models',
     source: 'models/ue-models.json',
     sourceType: 'aem-docs',
-    heading: 'Hero Component Definition & Schema',
+    heading: 'Hero Component Definition & Authoring Fields',
     language: 'json',
-    keywords: ['universal editor', 'schema', 'models', 'hero', 'fields'],
-    baseSimilarity: 0.79,
+    keywords: ['universal editor', 'schema', 'models', 'hero', 'fields', 'authoring'],
+    baseSimilarity: 0.84,
     codeSnippet: `{
   "id": "hero",
   "fields": [
-    { "component": "text", "name": "title", "label": "Title" },
-    { "component": "reference", "name": "image", "label": "Background Image" },
-    { "component": "aem-content", "name": "ctaUrl", "label": "Call To Action" }
+    { "component": "text", "name": "title", "label": "Headline", "valueType": "string" },
+    { "component": "reference", "name": "image", "label": "Hero Image", "valueType": "string" },
+    { "component": "aem-content", "name": "ctaUrl", "label": "Call To Action Target" }
   ]
 }`,
   },
@@ -198,7 +213,7 @@ const SIMULATED_CHUNKS: SimulatedChunk[] = [
     heading: 'Block DOM Decoration Rules & Lifecycle',
     language: 'markdown',
     keywords: ['eds', 'block', 'decorate', 'lifecycle', 'dom', 'franklin'],
-    baseSimilarity: 0.83,
+    baseSimilarity: 0.85,
     codeSnippet: `### Block Lifecycle in Edge Delivery Services:
 1. Franklin loader scans page DOM for \`.block\` elements.
 2. Dynamically imports \`/blocks/{blockName}/{blockName}.js\`.
@@ -212,6 +227,8 @@ export default function KnowledgePage() {
   const [selectedSourceType, setSelectedSourceType] = useState<string>('all');
   const [applyWeights, setApplyWeights] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<'search' | 'catalog' | 'prompt'>('search');
+  const [copied, setCopied] = useState(false);
+  const [isReindexing, setIsReindexing] = useState(false);
 
   // Compute retrieval results based on search query and weights
   const searchResults = useMemo(() => {
@@ -219,7 +236,6 @@ export default function KnowledgePage() {
     const queryTokens = q.split(/\s+/).filter(Boolean);
 
     return SIMULATED_CHUNKS.map((chunk) => {
-      // Calculate token match ratio
       let matchCount = 0;
       for (const token of queryTokens) {
         if (
@@ -233,9 +249,9 @@ export default function KnowledgePage() {
       }
 
       const matchRatio = queryTokens.length > 0 ? matchCount / queryTokens.length : 0.5;
-      const rawSim = Math.min(0.98, Math.max(0.2, chunk.baseSimilarity * 0.5 + matchRatio * 0.5));
-      const sourceWeight = applyWeights ? (SOURCE_WEIGHTS[chunk.sourceType] ?? 1.0) : 1.0;
-      const weightedScore = rawSim * sourceWeight;
+      const rawSim = Math.min(0.99, Math.max(0.3, chunk.baseSimilarity * 0.55 + matchRatio * 0.45));
+      const sourceWeight = applyWeights ? (SOURCE_WEIGHTS[chunk.sourceType]?.weight ?? 1.0) : 1.0;
+      const weightedScore = Math.min(1.0, rawSim * (sourceWeight >= 1.0 ? 1 + (sourceWeight - 1) * 0.4 : sourceWeight));
 
       return {
         chunk,
@@ -248,271 +264,354 @@ export default function KnowledgePage() {
       .sort((a, b) => b.weightedScore - a.weightedScore);
   }, [searchQuery, selectedSourceType, applyWeights]);
 
-  const sourcePillClass = (type: string) => {
-    switch (type) {
-      case 'project-code':
-        return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
-      case 'standards':
-        return 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
-      case 'eds-docs':
-        return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
-      case 'aem-docs':
-        return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
-      default:
-        return 'bg-slate-800 text-slate-300 border-slate-700';
-    }
+  const handleCopyPrompt = () => {
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleReindex = () => {
+    setIsReindexing(true);
+    setTimeout(() => setIsReindexing(false), 1200);
   };
 
   return (
-    <>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-base)' }}>
       <TopBar
         title="Knowledge Retrieval (RAG & pgvector)"
         subtitle="Authoritative semantic retrieval engine with 768-dim embeddings and hierarchical source weighting"
       />
 
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        
         {/* KPI Strip */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 shadow-sm backdrop-blur">
-            <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-              <span>Indexed Documents</span>
-              <BookOpen className="w-4 h-4 text-cyan-400" />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+          <div className="card" style={{ padding: '18px 20px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Indexed Documents</span>
+              <BookOpen size={16} color="#06b6d4" />
             </div>
-            <div className="text-2xl font-bold text-slate-100">7 Docs</div>
-            <div className="text-xs text-cyan-400/80 mt-1">Project code, standards & docs</div>
+            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>7 Docs</div>
+            <div style={{ fontSize: '11px', color: '#06b6d4', marginTop: '4px' }}>Project code, standards & docs</div>
           </div>
 
-          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 shadow-sm backdrop-blur">
-            <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-              <span>Vector Chunks</span>
-              <Database className="w-4 h-4 text-emerald-400" />
+          <div className="card" style={{ padding: '18px 20px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Vector Chunks</span>
+              <Database size={16} color="#10b981" />
             </div>
-            <div className="text-2xl font-bold text-slate-100">82 Chunks</div>
-            <div className="text-xs text-emerald-400/80 mt-1">768-dim pgvector index</div>
+            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>82 Chunks</div>
+            <div style={{ fontSize: '11px', color: '#10b981', marginTop: '4px' }}>768-dim pgvector HNSW index</div>
           </div>
 
-          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 shadow-sm backdrop-blur">
-            <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-              <span>Source Priority Multiplier</span>
-              <Layers className="w-4 h-4 text-purple-400" />
+          <div className="card" style={{ padding: '18px 20px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Priority Multiplier</span>
+              <Layers size={16} color="#a855f7" />
             </div>
-            <div className="text-2xl font-bold text-slate-100">1.25x Code</div>
-            <div className="text-xs text-purple-400/80 mt-1">1.25x &gt; 1.15x &gt; 1.10x &gt; 1.05x</div>
+            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>1.25x Code</div>
+            <div style={{ fontSize: '11px', color: '#a855f7', marginTop: '4px' }}>Hierarchical: Code &gt; Docs &gt; Standards</div>
           </div>
 
-          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 shadow-sm backdrop-blur">
-            <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-              <span>Retrieval Latency</span>
-              <Sparkles className="w-4 h-4 text-amber-400" />
+          <div className="card" style={{ padding: '18px 20px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Query Latency</span>
+              <Zap size={16} color="#eab308" />
             </div>
-            <div className="text-2xl font-bold text-slate-100">14 ms</div>
-            <div className="text-xs text-amber-400/80 mt-1">Cosine vector distance</div>
+            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>12 ms</div>
+            <div style={{ fontSize: '11px', color: '#eab308', marginTop: '4px' }}>Cosine vector distance &lt;= 0.15</div>
           </div>
         </div>
 
-        {/* Tab Controls */}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-          <div className="flex items-center space-x-2">
+        {/* Tab & Action Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '12px', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button
               onClick={() => setActiveTab('search')}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center space-x-2 ${
-                activeTab === 'search'
-                  ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/30'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
+              className={`btn btn-sm ${activeTab === 'search' ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
             >
-              <Search className="w-4 h-4" />
+              <Search size={14} />
               <span>Semantic Retrieval Simulator</span>
             </button>
             <button
               onClick={() => setActiveTab('catalog')}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center space-x-2 ${
-                activeTab === 'catalog'
-                  ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/30'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
+              className={`btn btn-sm ${activeTab === 'catalog' ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
             >
-              <BookOpen className="w-4 h-4" />
+              <BookOpen size={14} />
               <span>Knowledge Document Catalog</span>
             </button>
             <button
               onClick={() => setActiveTab('prompt')}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center space-x-2 ${
-                activeTab === 'prompt'
-                  ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/30'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
+              className={`btn btn-sm ${activeTab === 'prompt' ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
             >
-              <Terminal className="w-4 h-4" />
+              <Terminal size={14} />
               <span>LLM Prompt Injection Preview</span>
             </button>
           </div>
 
-          <div className="flex items-center space-x-3 text-xs text-slate-400">
-            <label className="flex items-center space-x-2 cursor-pointer select-none">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
               <input
                 type="checkbox"
                 checked={applyWeights}
                 onChange={(e) => setApplyWeights(e.target.checked)}
-                className="w-4 h-4 text-cyan-500 rounded border-slate-700 bg-slate-800 focus:ring-cyan-500/40"
+                style={{ accentColor: 'var(--accent-primary)' }}
               />
               <span>Apply Hierarchical Priority Weights</span>
             </label>
+
+            <button
+              onClick={handleReindex}
+              disabled={isReindexing}
+              className="btn btn-secondary btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <RefreshCw size={13} className={isReindexing ? 'animate-spin' : ''} />
+              <span>{isReindexing ? 'Reindexing...' : 'Sync pgvector'}</span>
+            </button>
           </div>
         </div>
 
         {/* TAB 1: Semantic Retrieval Simulator */}
         {activeTab === 'search' && (
-          <div className="space-y-6">
-            <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800/80 space-y-4">
-              <div className="relative">
-                <Search className="w-5 h-5 absolute left-3.5 top-3.5 text-slate-400" />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {/* Search Input Box */}
+            <div className="card" style={{ padding: '20px', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-lg)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ position: 'relative' }}>
+                <Search size={18} style={{ position: 'absolute', left: '14px', top: '13px', color: 'var(--text-tertiary)' }} />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Enter semantic query e.g. 'hero block with buttons', 'CSS typography tokens'..."
-                  className="w-full pl-11 pr-4 py-3 bg-slate-950/80 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500 text-sm"
+                  placeholder="Enter semantic query (e.g. 'hero block with buttons', 'CSS typography design tokens')..."
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px 12px 42px',
+                    background: 'var(--bg-base)',
+                    border: '1px solid var(--border-strong)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--text-primary)',
+                    fontSize: '14px',
+                    outline: 'none',
+                    fontFamily: 'var(--font-ui)',
+                  }}
                 />
               </div>
 
-              {/* Quick Pills */}
-              <div className="flex items-center space-x-2 flex-wrap gap-y-2">
-                <span className="text-xs text-slate-500">Quick queries:</span>
+              {/* Quick Preset Queries */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 500 }}>Example Queries:</span>
                 {[
                   'hero block with buttons',
                   'cards block grid decorate',
                   'CSS variables typography design tokens',
                   'Universal Editor hero component schema',
                   'EDS block lifecycle DOM rules',
-                ].map((queryText) => (
+                ].map((qText) => (
                   <button
-                    key={queryText}
-                    onClick={() => setSearchQuery(queryText)}
-                    className="text-xs px-2.5 py-1 bg-slate-800/70 hover:bg-slate-800 text-slate-300 rounded-md border border-slate-700/60 transition-colors"
+                    key={qText}
+                    onClick={() => setSearchQuery(qText)}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: 'var(--radius-sm)',
+                      background: 'var(--bg-elevated)',
+                      border: '1px solid var(--border-subtle)',
+                      color: searchQuery === qText ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      transition: 'all 0.1s ease',
+                    }}
                   >
-                    {queryText}
+                    {qText}
                   </button>
                 ))}
               </div>
 
-              {/* Source Filters */}
-              <div className="flex items-center space-x-2 pt-2 border-t border-slate-800/60 flex-wrap gap-y-2">
-                <span className="text-xs text-slate-500 flex items-center space-x-1">
-                  <Filter className="w-3.5 h-3.5" />
+              {/* Filter Pills */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingTop: '12px', borderTop: '1px solid var(--border-subtle)', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Filter size={12} />
                   <span>Source Filter:</span>
                 </span>
                 {['all', 'project-code', 'standards', 'eds-docs', 'aem-docs'].map((st) => (
                   <button
                     key={st}
                     onClick={() => setSelectedSourceType(st)}
-                    className={`text-xs px-3 py-1 rounded-full border transition-colors ${
-                      selectedSourceType === st
-                        ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 font-medium'
-                        : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
-                    }`}
+                    style={{
+                      padding: '3px 10px',
+                      borderRadius: '12px',
+                      fontSize: '11px',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      background: selectedSourceType === st ? 'var(--color-info-dim)' : 'transparent',
+                      color: selectedSourceType === st ? 'var(--color-info)' : 'var(--text-secondary)',
+                      border: selectedSourceType === st ? '1px solid var(--color-info)' : '1px solid var(--border-subtle)',
+                    }}
                   >
-                    {st} {st !== 'all' && `(${SOURCE_WEIGHTS[st]}x)`}
+                    {st === 'all' ? 'All Sources' : SOURCE_WEIGHTS[st]?.label || st}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Results List */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between text-xs text-slate-400">
-                <span>
-                  Retrieved {searchResults.length} matching vector chunks (sorted by{' '}
-                  {applyWeights ? 'Weighted Score' : 'Raw Similarity'})
-                </span>
-                <span className="text-slate-500">Top-K = 5</span>
+            {/* Retrieval Result Cards */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-tertiary)' }}>
+                <span>Retrieved <strong>{searchResults.length}</strong> matching vector chunks (sorted by {applyWeights ? 'Weighted Score' : 'Cosine Similarity'})</span>
+                <span>pgvector Top-K = 5</span>
               </div>
 
-              <div className="grid grid-cols-1 gap-4">
-                {searchResults.map((item, idx) => (
+              {searchResults.map((item, idx) => {
+                const badgeColor = SOURCE_WEIGHTS[item.chunk.sourceType]?.color || '#3b82f6';
+                return (
                   <div
                     key={item.chunk.id}
-                    className="p-5 rounded-xl bg-slate-900/40 border border-slate-800 hover:border-slate-700/80 transition-all space-y-3"
+                    className="card"
+                    style={{
+                      padding: '18px 22px',
+                      background: 'var(--bg-surface)',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: 'var(--radius-lg)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px',
+                    }}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <span className="text-xs font-bold text-slate-500">#{idx + 1}</span>
-                        <h3 className="text-sm font-semibold text-slate-100">{item.chunk.title}</h3>
-                        <span className="text-xs text-slate-400">&gt; {item.chunk.heading}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)', fontWeight: 700 }}>
+                          #{idx + 1}
+                        </span>
+                        <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                          {item.chunk.title}
+                        </h3>
+                        <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                          &gt; {item.chunk.heading}
+                        </span>
                       </div>
 
-                      <div className="flex items-center space-x-2">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <span
-                          className={`text-xs px-2 py-0.5 rounded border font-mono ${sourcePillClass(
-                            item.chunk.sourceType
-                          )}`}
+                          style={{
+                            padding: '3px 8px',
+                            borderRadius: 'var(--radius-sm)',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            fontFamily: 'var(--font-mono)',
+                            color: badgeColor,
+                            background: `${badgeColor}18`,
+                            border: `1px solid ${badgeColor}33`,
+                          }}
                         >
                           {item.chunk.sourceType} ({item.sourceWeight}x)
                         </span>
 
-                        <div className="text-right pl-3 border-l border-slate-800">
-                          <div className="text-xs text-slate-400">
-                            Raw Sim: <span className="font-mono text-slate-300">{(item.rawSimilarity * 100).toFixed(1)}%</span>
+                        <div style={{ textAlign: 'right', borderLeft: '1px solid var(--border-subtle)', paddingLeft: '12px' }}>
+                          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                            Raw Sim: <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>{(item.rawSimilarity * 100).toFixed(1)}%</span>
                           </div>
-                          <div className="text-sm font-bold text-cyan-400 font-mono">
+                          <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--accent-primary)', fontFamily: 'var(--font-mono)' }}>
                             {(item.weightedScore * 100).toFixed(1)}% Score
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="text-xs text-slate-400 font-mono flex items-center space-x-2">
-                      <FileCode2 className="w-3.5 h-3.5 text-slate-500" />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+                      <FileCode2 size={13} color="var(--text-tertiary)" />
                       <span>{item.chunk.source}</span>
                     </div>
 
-                    <pre className="p-3.5 rounded-lg bg-slate-950/90 border border-slate-800/80 text-xs font-mono text-slate-300 overflow-x-auto leading-relaxed">
-                      <code>{item.chunk.codeSnippet}</code>
-                    </pre>
+                    <div
+                      style={{
+                        padding: '12px 16px',
+                        background: 'var(--bg-base)',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: 'var(--radius-md)',
+                        overflowX: 'auto',
+                      }}
+                    >
+                      <pre style={{ margin: 0, fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--text-primary)', lineHeight: 1.6 }}>
+                        <code>{item.chunk.codeSnippet}</code>
+                      </pre>
+                    </div>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
           </div>
         )}
 
         {/* TAB 2: Knowledge Document Catalog */}
         {activeTab === 'catalog' && (
-          <div className="space-y-4">
-            <div className="rounded-xl border border-slate-800 bg-slate-900/40 overflow-hidden">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-950/60 border-b border-slate-800 text-slate-400 font-medium">
-                  <tr>
-                    <th className="p-4">Document Title</th>
-                    <th className="p-4">Source Path</th>
-                    <th className="p-4">Source Type</th>
-                    <th className="p-4 text-center">Chunks</th>
-                    <th className="p-4 text-center">Tokens</th>
-                    <th className="p-4 text-right">Last Ingested</th>
+          <div className="card" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>Ingested Knowledge Documents</h3>
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>All active documents embedded and indexed into the PostgreSQL pgvector database</p>
+              </div>
+              <span className="badge badge-success" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <CheckCircle2 size={12} />
+                <span>All Documents Synced</span>
+              </span>
+            </div>
+
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}>
+                    <th style={{ padding: '12px 16px', fontWeight: 600 }}>Document Title</th>
+                    <th style={{ padding: '12px 16px', fontWeight: 600 }}>Source Path</th>
+                    <th style={{ padding: '12px 16px', fontWeight: 600 }}>Source Type</th>
+                    <th style={{ padding: '12px 16px', fontWeight: 600, textAlign: 'center' }}>Chunks</th>
+                    <th style={{ padding: '12px 16px', fontWeight: 600, textAlign: 'center' }}>Tokens</th>
+                    <th style={{ padding: '12px 16px', fontWeight: 600, textAlign: 'right' }}>Last Updated</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 text-slate-300">
-                  {KNOWLEDGE_DOCS.map((doc) => (
-                    <tr key={doc.id} className="hover:bg-slate-800/20 transition-colors">
-                      <td className="p-4 font-medium text-slate-100 flex items-center space-x-2">
-                        <BookOpen className="w-4 h-4 text-cyan-400" />
-                        <span>{doc.title}</span>
-                      </td>
-                      <td className="p-4 font-mono text-slate-400">{doc.source}</td>
-                      <td className="p-4">
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded border font-mono ${sourcePillClass(
-                            doc.sourceType
-                          )}`}
-                        >
-                          {doc.sourceType}
-                        </span>
-                      </td>
-                      <td className="p-4 text-center font-mono">{doc.chunksCount}</td>
-                      <td className="p-4 text-center font-mono">{doc.tokensCount.toLocaleString()}</td>
-                      <td className="p-4 text-right text-slate-400">{doc.updatedAt}</td>
-                    </tr>
-                  ))}
+                <tbody>
+                  {KNOWLEDGE_DOCS.map((doc) => {
+                    const badgeColor = SOURCE_WEIGHTS[doc.sourceType]?.color || '#3b82f6';
+                    return (
+                      <tr key={doc.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                        <td style={{ padding: '14px 16px', fontWeight: 500, color: 'var(--text-primary)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <BookOpen size={15} color="#06b6d4" />
+                            <span>{doc.title}</span>
+                          </div>
+                        </td>
+                        <td style={{ padding: '14px 16px', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', fontSize: '12px' }}>
+                          {doc.source}
+                        </td>
+                        <td style={{ padding: '14px 16px' }}>
+                          <span
+                            style={{
+                              padding: '2px 8px',
+                              borderRadius: 'var(--radius-sm)',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              fontFamily: 'var(--font-mono)',
+                              color: badgeColor,
+                              background: `${badgeColor}18`,
+                              border: `1px solid ${badgeColor}33`,
+                            }}
+                          >
+                            {doc.sourceType}
+                          </span>
+                        </td>
+                        <td style={{ padding: '14px 16px', textAlign: 'center', fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
+                          {doc.chunksCount}
+                        </td>
+                        <td style={{ padding: '14px 16px', textAlign: 'center', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
+                          {doc.tokensCount.toLocaleString()}
+                        </td>
+                        <td style={{ padding: '14px 16px', textAlign: 'right', color: 'var(--text-tertiary)', fontSize: '12px' }}>
+                          {doc.updatedAt}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -521,21 +620,39 @@ export default function KnowledgePage() {
 
         {/* TAB 3: LLM Prompt Injection Preview */}
         {activeTab === 'prompt' && (
-          <div className="p-6 rounded-xl bg-slate-900/40 border border-slate-800 space-y-4">
-            <div className="flex items-center justify-between">
+          <div className="card" style={{ padding: '24px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
               <div>
-                <h3 className="text-sm font-semibold text-slate-100">LLM System Context Injection</h3>
-                <p className="text-xs text-slate-400 mt-1">
-                  How retrieved vector chunks are formatted and prepended to the autonomous AI developer's prompt:
+                <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>Autonomous Developer System Prompt Injection</h3>
+                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                  Pre-compiled semantic context injected into the Claude / GPT-4o / Ollama prompt before execution
                 </p>
               </div>
-              <span className="text-xs px-2.5 py-1 bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 rounded font-mono">
-                Tokens: ~1,240
-              </span>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span className="badge badge-info" style={{ fontFamily: 'var(--font-mono)' }}>~1,240 Prompt Tokens</span>
+                <button
+                  onClick={handleCopyPrompt}
+                  className="btn btn-secondary btn-sm"
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  {copied ? <Check size={13} color="var(--color-success)" /> : <Copy size={13} />}
+                  <span>{copied ? 'Copied' : 'Copy Context'}</span>
+                </button>
+              </div>
             </div>
 
-            <pre className="p-4 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs text-slate-300 overflow-x-auto leading-relaxed whitespace-pre-wrap">
-              {`### AEM / EDS Knowledge & Standards Context
+            <div
+              style={{
+                padding: '16px 20px',
+                background: 'var(--bg-base)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-md)',
+                overflowX: 'auto',
+              }}
+            >
+              <pre style={{ margin: 0, fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>
+{`### AEM / EDS Knowledge & Standards Context
 The following authoritative project code, standards, and documentation should inform the implementation:
 
 #### [1] Source: Hero Block Decorator > Decorator Function & Picture Optimization (Type: project-code, Relevance: 98.4%)
@@ -565,21 +682,23 @@ Reference: \`styles/styles.css\`
 }
 \`\`\`
 
-#### [3] Source: Universal Editor Component Models > Hero Component Definition & Schema (Type: aem-docs, Relevance: 82.9%)
+#### [3] Source: Universal Editor Component Models > Hero Component Definition & Schema (Type: aem-docs, Relevance: 84.1%)
 Reference: \`models/ue-models.json\`
 \`\`\`json
 {
   "id": "hero",
   "fields": [
-    { "component": "text", "name": "title", "label": "Title" },
-    { "component": "reference", "name": "image", "label": "Background Image" }
+    { "component": "text", "name": "title", "label": "Headline" },
+    { "component": "reference", "name": "image", "label": "Hero Image" },
+    { "component": "aem-content", "name": "ctaUrl", "label": "Call To Action Target" }
   ]
 }
 \`\`\``}
-            </pre>
+              </pre>
+            </div>
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 }

@@ -7,9 +7,10 @@ import { useState, useEffect } from 'react';
 interface TopBarProps {
   title: string;
   subtitle?: string;
+  actions?: React.ReactNode;
 }
 
-export function TopBar({ title, subtitle }: TopBarProps) {
+export function TopBar({ title, subtitle, actions }: TopBarProps) {
   const [now, setNow] = useState<string>('');
 
   useEffect(() => {
@@ -99,6 +100,8 @@ export function TopBar({ title, subtitle }: TopBarProps) {
         >
           <Bell size={13} />
         </button>
+
+        {actions}
 
         <Link
           href="/dashboard/projects/new"
