@@ -14,8 +14,8 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "test:unit": "turbo run test:unit",
-    "test:integration": "turbo run test:integration",
+    "test:unit": "turbo run test",
+    "test:integration": "npx tsx scripts/demo-pipeline.ts",
     "db:generate": "turbo run db:generate",
     "db:migrate": "turbo run db:migrate",
     "db:studio": "turbo run db:studio",
@@ -24,10 +24,11 @@
     "e2e:demo": "npx tsx scripts/demo-pipeline.ts"
   },
   "devDependencies": {
-    "turbo": "^2.5.4",
-    "typescript": "^5.8.3",
     "@types/node": "^24.0.10",
-    "prettier": "^3.4.2"
+    "esbuild": "^0.28.2",
+    "prettier": "^3.4.2",
+    "turbo": "^2.5.4",
+    "typescript": "^5.8.3"
   },
   "engines": {
     "node": ">=20.0.0",

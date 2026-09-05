@@ -37,7 +37,7 @@ export async function processAgentRunJob(
   const orchestrator = new AgentOrchestrator(data.runId);
 
   // 3. Pipe orchestrator events to DB and BullMQ progress
-  orchestrator.onEvent(async (type, payload) => {
+  orchestrator.onEvent(async (type: any, payload: Record<string, any>) => {
     try {
       const step = String(payload['phase'] || payload['step'] || 'pipeline');
       const status = String(payload['status'] || 'running');
