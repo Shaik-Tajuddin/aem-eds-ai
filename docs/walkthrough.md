@@ -280,6 +280,17 @@ A single command (`npm run demo`) drives the complete autonomous engineering lif
 
 ---
 
+### 13. Dynamic Multi-Pass Self-Healing Loop
+- **Autonomous Convergence**: Implemented in `AgentOrchestrator` (`packages/agent/src/orchestrator.ts`). When defects are discovered during `FUNCTIONAL_TESTING`, `VISUAL_VALIDATION`, or `QUALITY_GATE`, the orchestrator automatically enters a dynamic repair loop: `DIAGNOSING ➔ FIXING ➔ REGRESSION_TESTING ➔ QUALITY_GATE`.
+- **Iteration Budget Protection**: Bounded by `maxFixIterations` (default 5). If repairs exceed the threshold, transitions deterministically to `LIMIT_REACHED` and alerts engineering rather than looping infinitely.
+- **Automated Verification**: Verified via Vitest unit test in `packages/agent/test/orchestrator.test.ts`.
+
+### 14. Interactive In-Browser Run Dispatch & Comparison
+- **Run Dispatch Modal (`NewRunModal.tsx`)**: Directly launches autonomous runs from `/dashboard/runs` to BullMQ Redis queues with customized source URL, branch, visual threshold, and self-healing budgets.
+- **Run Comparison Observatory (`/dashboard/runs/compare`)**: Side-by-side comparative inspection of Run A (Candidate) vs. Run B (Baseline) featuring metric deltas (runtime, self-healing passes, visual match %), interactive code diff viewer for generated blocks and Universal Editor JSON, visual regression heatmap overlay, and quality gate scorecards.
+
+---
+
 ## 🧪 Test & Validation Summary
 
 All packages and worker daemons have unit tests executed via Vitest and pass with 100% success rate:
@@ -293,7 +304,7 @@ All packages and worker daemons have unit tests executed via Vitest and pass wit
  ✓ packages/github/test/adapter.test.ts (9 tests)
  ✓ packages/aem/test/aem.test.ts (10 tests)
  ✓ packages/llm/test/gateway.test.ts (7 tests)
- ✓ packages/agent/test/orchestrator.test.ts (5 tests)
+ ✓ packages/agent/test/orchestrator.test.ts (6 tests)
  ✓ packages/browser/test/controller.test.ts (3 tests)
  ✓ packages/rag/test/rag.test.ts (12 tests)
  ✓ packages/queue/test/queue.test.ts (7 tests)
@@ -302,11 +313,11 @@ All packages and worker daemons have unit tests executed via Vitest and pass wit
  ✓ apps/api/test/server.test.ts (2 tests)
 
  Test Files  13 passed (13)
-      Tests  73 passed (73)
+      Tests  74 passed (74)
  Tasks       22 successful, 22 total
 ```
 
 - **Monorepo Typecheck**: `npm run typecheck` across all 25 workspace tasks exits with code 0 (100% clean).
 - **Production Next.js Build**: Compiles and prerenders all dashboard routes cleanly.
-- **Autonomous CLI Demo**: `npm run demo` executes the complete 18-state workflow end-to-end.
+- **Autonomous CLI Demo**: `npm run demo` executes the complete 18-state workflow end-to-end in ~4.7s.
 

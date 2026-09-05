@@ -72,5 +72,52 @@ describe('Agent Orchestrator & State Machine', () => {
       expect(paths).toContain('_component-definition.json');
       expect(paths).toContain('_component-models.json');
     });
+
+    it('triggers dynamic self-healing loop when defects are detected and recovers to PR_CREATED', async () => {
+      const orchestrator = new AgentOrchestrator('run-heal-1');
+      const phasesRun: RunStatus[] = [];
+
+      orchestrator.onEvent((type, payload) => {
+        if (type === AgentEventType.AGENT_STEP_STARTED && payload.phase) {
+          phasesRun.push(payload.phase as RunStatus);
+        }
+      });
+
+      // Register a mock QA agent that injects an unresolved bug on its first pass
+      let qaCalls = 0;
+      orchestrator.registerAgent({
+        id: 'agent-qa-mock',
+        name: 'Mock QA',
+        description: 'Test QA Agent with bug detection',
+        phase: RunStatus.FUNCTIONAL_TESTING,
+        execute: async (ctx) => {
+          qaCalls++;
+          if (qaCalls === 1) {
+            ctx.bugs.push({
+              id: 'bug-101',
+              title: 'Accessibility contrast failure on CTA button',
+              severity: 'HIGH',
+              description: 'Color contrast ratio 3.2:1 is below required 4.5:1',
+              resolved: false,
+            });
+          }
+          return { success: true };
+        },
+      } as any);
+
+      const result = await orchestrator.execute({
+        runId: 'run-heal-1',
+        projectId: 'proj-acme',
+        repoOwner: 'adobe',
+        repoName: 'aem-boilerplate',
+        sourceType: 'FIGMA',
+      });
+
+      expect(result.finalStatus).toBe(RunStatus.PR_CREATED);
+      expect(phasesRun).toContain(RunStatus.DIAGNOSING);
+      expect(phasesRun).toContain(RunStatus.FIXING);
+      expect(phasesRun).toContain(RunStatus.REGRESSION_TESTING);
+      expect(orchestrator.getStateMachine().getFixIterations()).toBe(1);
+    });
   });
 });

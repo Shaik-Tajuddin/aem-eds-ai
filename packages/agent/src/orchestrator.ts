@@ -30,6 +30,7 @@ export interface OrchestratorRunOptions {
   maxLLMCalls?: number;
   maxToolCalls?: number;
   maxCostUsd?: number;
+  maxFixIterations?: number;
   abortSignal?: AbortSignal;
 }
 
@@ -45,8 +46,8 @@ export class AgentOrchestrator {
   private eventListeners: RunEventListener[] = [];
   private decisions: AgentDecision[] = [];
 
-  constructor(runId: string, llmGateway?: LLMGateway, toolRegistry?: ToolRegistry) {
-    this.stateMachine = new RunStateMachine(runId);
+  constructor(runId: string, llmGateway?: LLMGateway, toolRegistry?: ToolRegistry, maxFixIterations = 5) {
+    this.stateMachine = new RunStateMachine(runId, RunStatus.RECEIVED, maxFixIterations);
     this.llmGateway = llmGateway || new LLMGateway();
     this.toolRegistry = toolRegistry || new ToolRegistry();
 
@@ -58,6 +59,10 @@ export class AgentOrchestrator {
     this.registerAgent(new QAValidationAgent());
     this.registerAgent(new FixAgent());
     this.registerAgent(new DeploymentAgent());
+  }
+
+  public getStateMachine(): RunStateMachine {
+    return this.stateMachine;
   }
 
   public registerAgent(agent: BaseAgent): void {
@@ -183,6 +188,72 @@ export class AgentOrchestrator {
           runId,
           phase: targetPhase,
         });
+
+        // Dynamic Multi-Pass Self-Healing Loop:
+        // If unresolved bugs are detected during testing/quality gate, loop through diagnosing -> fixing -> regression testing
+        if (targetPhase === RunStatus.QUALITY_GATE && context.bugs.some((b) => !b.resolved)) {
+          while (context.bugs.some((b) => !b.resolved)) {
+            if (!this.stateMachine.canTransitionTo(RunStatus.DIAGNOSING)) {
+              break;
+            }
+
+            await this.stateMachine.transition(RunStatus.DIAGNOSING);
+            await this.emit(AgentEventType.AGENT_STEP_STARTED, {
+              runId,
+              phase: RunStatus.DIAGNOSING,
+              status: RunStatus.DIAGNOSING,
+            });
+            context.log(`Self-healing: Diagnosing ${context.bugs.filter((b) => !b.resolved).length} defect(s)...`);
+            await this.emit(AgentEventType.AGENT_STEP_COMPLETED, {
+              runId,
+              phase: RunStatus.DIAGNOSING,
+            });
+
+            await this.stateMachine.transition(RunStatus.FIXING);
+            if (this.stateMachine.getStatus() === RunStatus.LIMIT_REACHED) {
+              context.log('Self-healing: Exceeded maximum fix iterations. Halting repairs.');
+              break;
+            }
+
+            await this.emit(AgentEventType.AGENT_STEP_STARTED, {
+              runId,
+              phase: RunStatus.FIXING,
+              status: RunStatus.FIXING,
+            });
+            const fixAgent = this.agents.get(RunStatus.FIXING);
+            if (fixAgent) {
+              const fixResult = await fixAgent.execute(context);
+              if (fixResult.decision) {
+                this.decisions.push(fixResult.decision);
+              }
+            }
+            await this.emit(AgentEventType.AGENT_STEP_COMPLETED, {
+              runId,
+              phase: RunStatus.FIXING,
+            });
+
+            await this.stateMachine.transition(RunStatus.REGRESSION_TESTING);
+            await this.emit(AgentEventType.AGENT_STEP_STARTED, {
+              runId,
+              phase: RunStatus.REGRESSION_TESTING,
+              status: RunStatus.REGRESSION_TESTING,
+            });
+            const qaAgent = this.agents.get(RunStatus.FUNCTIONAL_TESTING);
+            if (qaAgent) {
+              await qaAgent.execute(context);
+            }
+            await this.emit(AgentEventType.AGENT_STEP_COMPLETED, {
+              runId,
+              phase: RunStatus.REGRESSION_TESTING,
+            });
+
+            if (!context.bugs.some((b) => !b.resolved)) {
+              await this.stateMachine.transition(RunStatus.QUALITY_GATE);
+              context.log('Self-healing: Regression tests verified repairs. Returned to Quality Gate.');
+              break;
+            }
+          }
+        }
       }
 
       const finalStatus = this.stateMachine.getStatus();

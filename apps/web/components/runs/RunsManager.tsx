@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { NewRunModal } from './NewRunModal';
 
 interface RunItem {
   id: string;
@@ -146,6 +147,7 @@ export function RunsManager() {
   const [runs, setRuns] = useState<RunItem[]>(RUNS_DATA);
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'RUNNING' | 'COMPLETED' | 'FAILED'>('ALL');
   const [selectedRun, setSelectedRun] = useState<RunItem | null>(null);
+  const [isNewRunModalOpen, setIsNewRunModalOpen] = useState(false);
 
   const filteredRuns = runs.filter((r) => {
     if (statusFilter === 'RUNNING') return r.status === 'ANALYZING' || r.status === 'IMPLEMENTING' || r.status === 'QUALITY_GATE';
@@ -193,25 +195,51 @@ export function RunsManager() {
           ))}
         </div>
 
-        {/* Start Run Button */}
-        <Link
-          href="/dashboard/projects/new"
-          style={{
-            background: 'var(--color-primary)',
-            color: '#ffffff',
-            padding: '9px 16px',
-            borderRadius: 'var(--radius-md)',
-            fontSize: '13px',
-            fontWeight: 600,
-            textDecoration: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-          }}
-        >
-          <span>⚡</span>
-          <span>Start Autonomous Run</span>
-        </Link>
+        {/* Action Buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {/* Compare Runs Button */}
+          <Link
+            href={'/dashboard/runs/compare' as any}
+            style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-default)',
+              color: 'var(--text-secondary)',
+              padding: '9px 14px',
+              borderRadius: 'var(--radius-md)',
+              fontSize: '13px',
+              fontWeight: 600,
+              textDecoration: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <span>⚖️</span>
+            <span>Compare Runs</span>
+          </Link>
+
+          {/* Start Run Button */}
+          <button
+            onClick={() => setIsNewRunModalOpen(true)}
+            style={{
+              background: 'var(--color-primary)',
+              color: '#ffffff',
+              border: 'none',
+              padding: '9px 16px',
+              borderRadius: 'var(--radius-md)',
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: '0 2px 8px rgba(99, 102, 241, 0.35)',
+            }}
+          >
+            <span>⚡</span>
+            <span>Start Autonomous Run</span>
+          </button>
+        </div>
       </div>
 
       {/* Runs List */}
@@ -478,6 +506,13 @@ export function RunsManager() {
           </div>
         </div>
       )}
+
+      {/* New Run Modal */}
+      <NewRunModal
+        isOpen={isNewRunModalOpen}
+        onClose={() => setIsNewRunModalOpen(false)}
+        onRunCreated={(newRun) => setRuns((prev) => [newRun, ...prev])}
+      />
     </div>
   );
 }
