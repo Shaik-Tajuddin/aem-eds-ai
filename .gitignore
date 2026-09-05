@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+.npm/
+
+# Build outputs
+dist/
+.next/
+out/
+
+# Environment files (contain secrets)
+.env
+.env.local
+.env.production
+.env*.local
+!.env.example
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+
+# Database
+*.db
+*.sqlite
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+.idea/
+*.swp
+
+# Turbo cache
+.turbo/
+
+# TypeScript
+*.tsbuildinfo
+
+# Test artifacts
+coverage/
+playwright-report/
+test-results/
+
+# Artifacts (screenshots, diffs)
+artifacts/
+screenshots/

@@ -1,0 +1,51 @@
+# Multi-stage production Dockerfile for @aeds/web (Next.js 15)
+FROM node:20-alpine AS base
+WORKDIR /app
+RUN apk add --no-cache libc6-compat
+ENV NODE_ENV=production
+
+# ─── Dependencies ───
+FROM base AS deps
+WORKDIR /app
+COPY package.json package-lock.json turbo.json tsconfig.base.json tsconfig.json ./
+COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/database/package.json ./packages/database/
+COPY packages/github/package.json ./packages/github/
+COPY packages/llm/package.json ./packages/llm/
+COPY packages/tools/package.json ./packages/tools/
+COPY packages/agent/package.json ./packages/agent/
+COPY packages/browser/package.json ./packages/browser/
+COPY packages/visual/package.json ./packages/visual/
+COPY packages/aem/package.json ./packages/aem/
+COPY packages/figma/package.json ./packages/figma/
+COPY packages/rag/package.json ./packages/rag/
+COPY packages/queue/package.json ./packages/queue/
+COPY workers/agent-worker/package.json ./workers/agent-worker/
+COPY workers/browser-worker/package.json ./workers/browser-worker/
+
+RUN npm ci --include=dev
+
+# ─── Builder ───
+FROM deps AS builder
+WORKDIR /app
+COPY . .
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build --workspace=@aeds/shared
+RUN npm run build --workspace=@aeds/web
+
+# ─── Runner ───
+FROM base AS runner
+WORKDIR /app
+
+ENV PORT=3000
+ENV HOST=0.0.0.0
+ENV NEXT_TELEMETRY_DISABLED=1
+
+COPY --from=builder /app ./
+
+EXPOSE 3000
+
+CMD ["npm", "run", "start", "--workspace=@aeds/web"]

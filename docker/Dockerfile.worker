@@ -1,0 +1,90 @@
+# Production Dockerfile for BullMQ Workers (@aeds/agent-worker & @aeds/browser-worker)
+FROM node:20-bookworm-slim AS base
+WORKDIR /app
+ENV NODE_ENV=production
+
+# Install system dependencies for headless Chromium & Playwright
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget \
+    ca-certificates \
+    fonts-liberation \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libc6 \
+    libcairo2 \
+    libcups2 \
+    libdbus-1-3 \
+    libexpat1 \
+    libfontconfig1 \
+    libgbm1 \
+    libgcc1 \
+    libglib2.0-0 \
+    libgtk-3-0 \
+    libnspr4 \
+    libnss3 \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libstdc++6 \
+    libx11-6 \
+    libx11-xcb1 \
+    libxcb1 \
+    libxcomposite1 \
+    libxcursor1 \
+    libxdamage1 \
+    libxext6 \
+    libxfixes3 \
+    libxi6 \
+    libxrandr2 \
+    libxrender1 \
+    libxss1 \
+    libxtst6 \
+    && rm -rf /var/lib/apt/lists/*
+
+# ─── Dependencies ───
+FROM base AS deps
+WORKDIR /app
+COPY package.json package-lock.json turbo.json tsconfig.base.json tsconfig.json ./
+COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/database/package.json ./packages/database/
+COPY packages/github/package.json ./packages/github/
+COPY packages/llm/package.json ./packages/llm/
+COPY packages/tools/package.json ./packages/tools/
+COPY packages/agent/package.json ./packages/agent/
+COPY packages/browser/package.json ./packages/browser/
+COPY packages/visual/package.json ./packages/visual/
+COPY packages/aem/package.json ./packages/aem/
+COPY packages/figma/package.json ./packages/figma/
+COPY packages/rag/package.json ./packages/rag/
+COPY packages/queue/package.json ./packages/queue/
+COPY workers/agent-worker/package.json ./workers/agent-worker/
+COPY workers/browser-worker/package.json ./workers/browser-worker/
+
+RUN npm ci --include=dev
+
+# ─── Builder ───
+FROM deps AS builder
+WORKDIR /app
+COPY . .
+ENV NODE_ENV=production
+RUN npm run build --workspace=@aeds/shared
+RUN npm run build --workspace=@aeds/database
+RUN npm run build --workspace=@aeds/github
+RUN npm run build --workspace=@aeds/llm
+RUN npm run build --workspace=@aeds/tools
+RUN npm run build --workspace=@aeds/browser
+RUN npm run build --workspace=@aeds/visual
+RUN npm run build --workspace=@aeds/queue
+RUN npm run build --workspace=@aeds/agent
+RUN npm run build --workspace=@aeds/agent-worker
+RUN npm run build --workspace=@aeds/browser-worker
+
+# ─── Runner ───
+FROM base AS runner
+WORKDIR /app
+COPY --from=builder /app ./
+
+# Default CMD: Agent Worker (can be overridden in docker-compose for browser worker)
+CMD ["node", "workers/agent-worker/dist/index.js"]

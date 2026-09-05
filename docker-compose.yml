@@ -1,0 +1,180 @@
+services:
+  # ─── PostgreSQL with pgvector ─────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: aeds_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aeds
+      POSTGRES_PASSWORD: aeds_password
+      POSTGRES_DB: aeds_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aeds -d aeds_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Redis ────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: aeds_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ""
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── MinIO (S3-compatible object storage) ─────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: aeds_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # MinIO Console
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # ─── MinIO bucket initializer ─────────────────────────────
+  minio-init:
+    image: minio/mc:latest
+    container_name: aeds_minio_init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 minioadmin minioadmin;
+        mc mb --ignore-existing local/aeds-artifacts;
+        mc anonymous set download local/aeds-artifacts/screenshots;
+        echo 'MinIO initialized';
+      "
+
+  # ─── pgAdmin (dev only) ───────────────────────────────────
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: aeds_pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@aeds.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - tools
+
+  # ─── Fastify AI API Gateway ──────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: aeds_api
+    restart: unless-stopped
+    environment:
+      PORT: 4000
+      HOST: 0.0.0.0
+      DATABASE_URL: postgresql://aeds:aeds_password@postgres:5432/aeds_dev
+      REDIS_URL: redis://redis:6379
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      S3_BUCKET: aeds-artifacts
+      JWT_SECRET: super-secret-production-jwt-token-aeds
+      LOG_LEVEL: info
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  # ─── Next.js 15 Web Dashboard ────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+    container_name: aeds_web
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      HOST: 0.0.0.0
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: super-secret-nextauth-token-aeds
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+  # ─── BullMQ Agent Orchestrator Worker ────────────────────
+  agent-worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    container_name: aeds_agent_worker
+    restart: unless-stopped
+    command: ["node", "workers/agent-worker/dist/index.js"]
+    environment:
+      DATABASE_URL: postgresql://aeds:aeds_password@postgres:5432/aeds_dev
+      REDIS_URL: redis://redis:6379
+      WORKER_CONCURRENCY: 3
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ─── BullMQ Browser & Visual QA Worker ───────────────────
+  browser-worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    container_name: aeds_browser_worker
+    restart: unless-stopped
+    command: ["node", "workers/browser-worker/dist/index.js"]
+    environment:
+      DATABASE_URL: postgresql://aeds:aeds_password@postgres:5432/aeds_dev
+      REDIS_URL: redis://redis:6379
+      WORKER_CONCURRENCY: 2
+      PLAYWRIGHT_BROWSERS_PATH: 0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+
+networks:
+  default:
+    name: aeds_network
+

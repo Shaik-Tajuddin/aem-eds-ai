@@ -1,0 +1,37 @@
+{
+  "name": "@aeds/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI EDS Developer â€” Next.js 15 Dashboard",
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aeds/shared": "*",
+    "@fastify/jwt": "10.2.2",
+    "@fastify/swagger-ui": "6.1.1",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "drizzle-orm": "0.45.2",
+    "lucide-react": "^0.511.0",
+    "next": "^16.3.4",
+    "next-auth": "^5.0.0-beta.25",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.10",
+    "@types/node": "^24.0.10",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.5",
+    "eslint": "^9.29.0",
+    "eslint-config-next": "^15.3.4",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.10",
+    "typescript": "^5.8.3"
+  }
+}

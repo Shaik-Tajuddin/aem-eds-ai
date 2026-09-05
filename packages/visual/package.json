@@ -1,0 +1,41 @@
+{
+  "name": "@aeds/visual",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Visual regression testing and screenshot comparison for AI EDS Developer",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "clean": "rimraf dist"
+  },
+
+  "dependencies": {
+    "@aeds/shared": "*",
+    "@fastify/jwt": "10.2.2",
+    "@fastify/swagger-ui": "6.1.1",
+    "drizzle-kit": "0.18.1",
+    "drizzle-orm": "0.45.2",
+    "jimp": "^1.6.1",
+    "next": "16.3.4",
+    "node-cron": "4.6.0",
+    "pixelmatch": "^6.0.0",
+    "pngjs": "^7.0.0"
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1",
+    "tsup": "^8.5.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
+
