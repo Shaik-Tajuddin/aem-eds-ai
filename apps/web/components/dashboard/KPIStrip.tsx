@@ -14,7 +14,23 @@ interface KPIStripProps {
   items: KPIItem[];
 }
 
-export function KPIStrip({ items }: KPIStripProps) {
+
+import { useProjects } from '../../lib/project-store';
+
+export function KPIStrip({ items: initialItems }: KPIStripProps) {
+  const { projects, isLiveMode } = useProjects();
+
+  const items = isLiveMode
+    ? [
+        { id: 'active-runs', label: 'Active Runs', value: '0', subtext: 'READY', trend: 'live' as const },
+        { id: 'projects', label: 'Projects', value: String(projects.length), subtext: 'Custom Active', trend: 'up' as const },
+        { id: 'success-rate', label: 'Success Rate', value: '100%', subtext: 'Clean baseline', trend: 'up' as const },
+        { id: 'open-issues', label: 'Open Issues', value: '0', subtext: 'Zero blockers', trend: 'down' as const },
+        { id: 'avg-iterations', label: 'Avg Fix Iterations', value: '0.0', subtext: 'per run', trend: 'neutral' as const },
+        { id: 'avg-runtime', label: 'Avg Run Time', value: '0m', subtext: 'custom runs', trend: 'neutral' as const },
+      ]
+    : initialItems;
+
   return (
     <div
       style={{

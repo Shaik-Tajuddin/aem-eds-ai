@@ -55,22 +55,37 @@ const PROJECTS = [
   },
 ];
 
+import { useProjects } from '../../../lib/project-store';
+
 export default function ProjectsPage() {
+  const { projects, isLiveMode, resetToDemoProjects } = useProjects();
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-base)' }}>
       <TopBar
         title="EDS Projects"
         subtitle="Manage connected GitHub repositories, AEM environments, LLM configurations, and quality gate profiles"
         actions={
-          <Link href="/dashboard/projects/new" className="btn btn-primary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Plus size={14} />
-            <span>New Project</span>
-          </Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {isLiveMode && (
+              <button
+                onClick={resetToDemoProjects}
+                className="btn btn-ghost btn-sm"
+                style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}
+              >
+                Reset to Demo
+              </button>
+            )}
+            <Link href="/dashboard/projects/new" className="btn btn-primary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Plus size={14} />
+              <span>New Project</span>
+            </Link>
+          </div>
         }
       />
 
       <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        
+
         {/* KPI Strip */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
           <div className="card" style={{ padding: '18px 20px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
@@ -78,8 +93,12 @@ export default function ProjectsPage() {
               <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Active Projects</span>
               <FolderKanban size={16} color="var(--accent-primary)" />
             </div>
-            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>3 Repos</div>
-            <div style={{ fontSize: '11px', color: 'var(--accent-primary)', marginTop: '4px' }}>100% EDS boilerplate compliant</div>
+            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
+              {projects.length} {projects.length === 1 ? 'Repo' : 'Repos'}
+            </div>
+            <div style={{ fontSize: '11px', color: isLiveMode ? 'var(--color-success)' : 'var(--accent-primary)', marginTop: '4px' }}>
+              {isLiveMode ? 'Custom Projects Active' : '100% EDS boilerplate compliant'}
+            </div>
           </div>
 
           <div className="card" style={{ padding: '18px 20px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
@@ -114,11 +133,11 @@ export default function ProjectsPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <h2 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>Connected Projects & Environments</h2>
-            <span style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>Showing 3 of 3 projects</span>
+            <span style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>Showing {projects.length} of {projects.length} projects</span>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '14px' }}>
-            {PROJECTS.map((p) => (
+            {projects.map((p) => (
               <div
                 key={p.id}
                 className="card"

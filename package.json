@@ -19,6 +19,7 @@
     "db:generate": "turbo run db:generate",
     "db:migrate": "turbo run db:migrate",
     "db:studio": "turbo run db:studio",
+    "db:push": "turbo run db:push",
     "clean": "turbo run clean",
     "demo": "npx tsx scripts/demo-pipeline.ts",
     "e2e:demo": "npx tsx scripts/demo-pipeline.ts"

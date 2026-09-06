@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { CheckCircle2, AlertCircle, Clock, ExternalLink } from 'lucide-react';
 import { formatRelativeTime } from '../../lib/utils';
+import { useProjects } from '../../lib/project-store';
 
 interface ProjectCard {
   id: string;
@@ -19,10 +20,28 @@ interface ProjectCard {
 }
 
 interface ProjectsGridProps {
-  projects: ProjectCard[];
+  projects?: ProjectCard[];
 }
 
-export function ProjectsGrid({ projects }: ProjectsGridProps) {
+export function ProjectsGrid({ projects: initialProjects = [] }: ProjectsGridProps) {
+  const { projects: storedProjects, isLiveMode } = useProjects();
+
+  const displayProjects: ProjectCard[] = isLiveMode
+    ? storedProjects.map((p) => ({
+        id: p.id,
+        name: p.name,
+        health: p.healthScore > 90 ? 'HEALTHY' : 'ISSUES',
+        activeRuns: p.lastRunStatus === 'RUNNING' ? 1 : 0,
+        eds: true,
+        aem: !!p.aemEnvironment,
+        ue: true,
+        testsTotal: p.blocksCount > 0 ? p.blocksCount * 8 : 12,
+        testsPassed: p.blocksCount > 0 ? p.blocksCount * 8 : 12,
+        visualScore: p.healthScore,
+        lastRunAt: p.lastRunTime,
+      }))
+    : initialProjects;
+
   return (
     <section id="projects">
       <div
@@ -33,14 +52,16 @@ export function ProjectsGrid({ projects }: ProjectsGridProps) {
           marginBottom: '12px',
         }}
       >
-        <h2 className="section-title">Projects</h2>
+        <h2 className="section-title">
+          Projects {isLiveMode && <span style={{ fontSize: '11px', color: 'var(--color-success)', fontFamily: 'var(--font-mono)' }}>(Live)</span>}
+        </h2>
         <Link href="/dashboard/projects" className="btn btn-ghost btn-sm">
           View all
         </Link>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {projects.map((project) => (
+        {displayProjects.map((project) => (
           <ProjectRow key={project.id} project={project} />
         ))}
       </div>
