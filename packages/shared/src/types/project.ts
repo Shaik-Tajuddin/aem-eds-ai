@@ -42,6 +42,8 @@ export interface AEMConfig {
   authorUrl: string;
   previewUrl: string;
   environment: string;
+  /** Root or default JCR page path in AEM Cloud (e.g. '/content/mysite/us/en') */
+  authoringPath?: string;
   // credentials stored encrypted in DB — never in this type
 }
 

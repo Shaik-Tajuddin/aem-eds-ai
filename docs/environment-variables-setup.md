@@ -85,6 +85,7 @@ Paste your generated `ENCRYPTION_KEY`, `NEXTAUTH_SECRET`, and `API_SECRET_KEY`, 
 | `AEM_ORGANIZATION_ID`| AEM / IMS | Conditional | `...@AdobeOrg` | Adobe IMS Organization ID |
 | `AEM_TECHNICAL_ACCOUNT_ID` | AEM / IMS | Conditional | `...@techacct.adobe.com` | Adobe IMS Technical Account ID |
 | `AEM_PRIVATE_KEY_PATH`| AEM / IMS | Conditional | `/path/to/private.key` | Filesystem path to Adobe IMS private key |
+| `AEM_DEFAULT_AUTHORING_PATH` | AEM / IMS | Optional | `/content/mysite/us/en` | Default JCR authoring page path in AEM Cloud |
 | `LLM_PROVIDER` | LLM | **YES** | `ollama` | Provider: `ollama`, `openai`, `anthropic`, or `gemini` |
 | `LLM_API_URL` | LLM | Conditional | `http://localhost:11434` | Base URL for LLM API (required for Ollama / Custom) |
 | `LLM_API_KEY` | LLM | Conditional | *(Empty for Ollama)* | API Key for OpenAI, Anthropic, or Gemini |

@@ -23,6 +23,7 @@ const CreateProjectSchema = z.object({
     authorUrl: z.string().url(),
     previewUrl: z.string().url(),
     environment: z.string(),
+    authoringPath: z.string().optional(),
   }).optional(),
   figma: z.object({
     fileUrl: z.string().url(),
@@ -130,6 +131,7 @@ export const projectsPlugin: FastifyPluginAsync = async (server) => {
             name: body.aem.environment,
             authorUrl: body.aem.authorUrl,
             previewUrl: body.aem.previewUrl,
+            authoringPath: body.aem.authoringPath,
           });
         }
 

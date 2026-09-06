@@ -77,6 +77,7 @@ export const environments = pgTable('environments', {
   authorUrl: text('author_url'),
   previewUrl: text('preview_url'),
   productionUrl: text('production_url'),
+  authoringPath: text('authoring_path'), // e.g. '/content/mysite/us/en'
   encryptedCredentials: text('encrypted_credentials'), // JSON blob, encrypted
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => ({

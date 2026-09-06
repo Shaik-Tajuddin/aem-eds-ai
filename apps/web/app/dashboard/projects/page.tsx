@@ -200,6 +200,27 @@ export default function ProjectsPage() {
                     <span style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{p.aemEnvironment}</span>
                   </div>
                   <div>
+                    <span style={{ color: 'var(--text-tertiary)', display: 'block', marginBottom: '2px' }}>AEM Authoring Path</span>
+                    <span style={{ color: p.aemAuthoringPath ? 'var(--accent-primary)' : 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}>
+                      {p.aemAuthoringPath ? (
+                        p.aemAuthorUrl ? (
+                          <a
+                            href={`${p.aemAuthorUrl.replace(/\/$/, '')}/sites.html${p.aemAuthoringPath.startsWith('/') ? p.aemAuthoringPath : `/${p.aemAuthoringPath}`}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                          >
+                            {p.aemAuthoringPath} <ExternalLink size={10} />
+                          </a>
+                        ) : (
+                          p.aemAuthoringPath
+                        )
+                      ) : (
+                        '— (Document-based)'
+                      )}
+                    </span>
+                  </div>
+                  <div>
                     <span style={{ color: 'var(--text-tertiary)', display: 'block', marginBottom: '2px' }}>Primary LLM</span>
                     <span style={{ color: 'var(--text-primary)' }}>{p.llmProvider}</span>
                   </div>

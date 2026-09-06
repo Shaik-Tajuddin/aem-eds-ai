@@ -243,7 +243,18 @@ Extract:
 18. UNIVERSAL EDITOR
     Implement Universal Editor support.
     The platform must be able to:
-1. Identify UE-enabled pages.2. Open the page.3. Identify editable components.4. Add content.5. Edit fields.6. Save content.7. Reopen page.8. Verify persisted values.9. Verify block rendering.10. Verify links/images/text.11. Verify required authoring behavior.
+1. Identify UE-enabled pages and resolve the AEM Cloud authoring page path (`/content/<site>/...`).
+2. Bind EDS block DOM elements using `data-aue-resource="urn:aemconnection:<path>"`.
+3. Open the page in Universal Editor and local simulated harnesses.
+4. Identify editable components.
+5. Add content.
+6. Edit fields.
+7. Save content.
+8. Reopen page.
+9. Verify persisted values.
+10. Verify block rendering.
+11. Verify links/images/text.
+12. Verify required authoring behavior.
    Do NOT assume visual rendering means authoring works.
    Test both:
    Authoring correctness+Rendered correctness
@@ -750,7 +761,7 @@ Extract:
     project:  name:  description:
     source:  type:  url:
     github:  repository:  branch:
-    aem:  authorUrl:  previewUrl:  environment:
+    aem:  authorUrl:  authoringPath:  previewUrl:  environment:
     figma:  fileUrl:
     llm:  provider:  apiUrl:  model:  embeddingModel:
     autonomy:

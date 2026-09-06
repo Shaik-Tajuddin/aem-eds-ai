@@ -295,6 +295,19 @@ function Step4({
           style={inputStyle}
         />
       </FormField>
+      <FormField
+        label="AEM Authoring Page Path"
+        hint="Root or default JCR page path in AEM Cloud (e.g. /content/mysite/us/en)"
+      >
+        <input
+          id="aem-authoring-path"
+          type="text"
+          placeholder="/content/mysite/us/en"
+          value={data.aemAuthoringPath}
+          onChange={(e) => onChange({ aemAuthoringPath: e.target.value })}
+          style={inputStyle}
+        />
+      </FormField>
       <FormField label="Environment Name">
         <input
           id="aem-environment"
@@ -527,6 +540,7 @@ function Step7({ data }: { data: FormData }) {
     { label: "GitHub Repo", value: data.githubRepo || "—" },
     { label: "Branch", value: data.githubBranch || "main" },
     { label: "AEM Author", value: data.aemAuthorUrl || "—" },
+    { label: "AEM Authoring Path", value: data.aemAuthoringPath || "—" },
     {
       label: "LLM Provider",
       value: data.llmProvider?.replace(/_/g, " ") || "—",
@@ -720,6 +734,7 @@ interface FormData {
   githubBranch: string;
   githubToken: string;
   aemAuthorUrl: string;
+  aemAuthoringPath: string;
   aemPreviewUrl: string;
   aemEnvironment: string;
   llmProvider: string;
@@ -743,6 +758,7 @@ const defaultFormData: FormData = {
   githubBranch: "main",
   githubToken: "",
   aemAuthorUrl: "",
+  aemAuthoringPath: "",
   aemPreviewUrl: "",
   aemEnvironment: "",
   llmProvider: "",

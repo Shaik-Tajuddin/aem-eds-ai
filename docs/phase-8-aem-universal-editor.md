@@ -9,7 +9,8 @@ Phase 8 implemented `@aeds/aem`, the Adobe Experience Manager (AEM) Cloud and Un
 
 ### 1. AEM Cloud Client (`src/client.ts`)
 - **`AemCloudClient`**: Authenticated HTTP client communicating with AEM as a Cloud Service:
-  - `previewPage(path)`: Dispatches preview pipeline requests.
+  - **Authoring Page Path Resolution**: Accepts and binds JCR root paths (e.g., `/content/mysite/us/en`) used to map between AEM Sites pages, Universal Editor URN connections (`urn:aemconnection:/content/...`), and EDS preview endpoints.
+  - `previewPage(path)`: Dispatches preview pipeline requests for the specific authoring path.
   - `publishPage(path)`: Replicates content to production environments via `/bin/replicate.json`.
   - `getContentFragment(path)`: Extracts structured Content Fragment models and element values via Assets HTTP API.
   - **Fails Loudly per §75**: Requires valid IMS Service Credentials or Bearer Token; rejects missing credentials with typed `AemError` (`AUTHENTICATION_REQUIRED`).

@@ -164,6 +164,55 @@ export default function UniversalEditorDashboard() {
       />
 
       <div style={{ padding: '24px 32px' }}>
+        {/* Active Authoring Page Path Strip */}
+        <div
+          style={{
+            padding: '12px 18px',
+            marginBottom: '20px',
+            background: 'rgba(59, 130, 246, 0.08)',
+            border: '1px solid rgba(59, 130, 246, 0.25)',
+            borderRadius: 'var(--radius-md)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--accent-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Connected AEM Authoring Path:
+            </span>
+            <code style={{ fontSize: '13px', color: 'var(--text-primary)', background: 'var(--bg-surface)', padding: '3px 8px', borderRadius: '4px', border: '1px solid var(--border-subtle)' }}>
+              /content/experience-league/us/en
+            </code>
+            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+              (URN: <code>urn:aemconnection:/content/experience-league/us/en</code>)
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <a
+              href="https://author-p12345-e67890.adobeaemcloud.com/sites.html/content/experience-league/us/en"
+              target="_blank"
+              rel="noreferrer"
+              className="btn btn-ghost btn-sm"
+              style={{ fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+            >
+              <ExternalLink size={12} /> Open in AEM Sites
+            </a>
+            <a
+              href="https://experience.adobe.net/#/sites/author/universal-editor"
+              target="_blank"
+              rel="noreferrer"
+              className="btn btn-primary btn-sm"
+              style={{ fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+            >
+              <ExternalLink size={12} /> Launch Universal Editor
+            </a>
+          </div>
+        </div>
+
         {/* KPI Strip */}
         <div
           style={{

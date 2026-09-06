@@ -18,7 +18,7 @@
 2. **Retrieves Domain Knowledge** using a **pgvector semantic RAG engine** with hierarchical source weighting (1.25x project code, 1.10x standards, 1.05x EDS docs).
 3. **Plans Architecture & Conventions** against EDS block standards, authoring contracts, and CSS custom property design tokens.
 4. **Generates Pure EDS Code** — dependency-free vanilla JavaScript block decorators (`export default function decorate(block)`), mobile-first scoped CSS, and HTML test harnesses.
-5. **Instruments Universal Editor Contracts** — synthesizes `_component-definition.json`, `_component-models.json`, `_component-filters.json`, and injects `data-aue-*` DOM attributes.
+5. **Instruments Universal Editor Contracts & Authoring Paths** — maps AEM Cloud authoring page paths (`/content/<site>/...`), synthesizes `_component-definition.json`, `_component-models.json`, `_component-filters.json`, and injects `data-aue-*` DOM attributes (`data-aue-resource="urn:aemconnection:..."`).
 6. **Executes Headless Browser Testing** using Playwright across desktop and mobile viewports, tracking block decoration lifecycle, console errors, network 4xx/5xx responses, and Core Web Vitals (LCP, CLS).
 7. **Performs Visual Regression Auditing** using Pixelmatch with semantic bounding box clustering and differential heatmap overlays.
 8. **Engages Dynamic Multi-Pass Self-Healing** — when defects or visual regressions occur, it loops deterministically through `DIAGNOSING ➔ FIXING ➔ REGRESSION_TESTING ➔ QUALITY_GATE` up to configurable iterations.

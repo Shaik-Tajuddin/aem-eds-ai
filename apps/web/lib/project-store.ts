@@ -11,6 +11,8 @@ export interface UserProject {
   repo: string;
   branch: string;
   aemEnvironment?: string;
+  aemAuthorUrl?: string;
+  aemAuthoringPath?: string;
   llmProvider: string;
   blocksCount: number;
   healthScore: number;
@@ -33,6 +35,8 @@ export const INITIAL_DEMO_PROJECTS: UserProject[] = [
     repo: 'adobe-experience-league/aeds-boilerplate',
     branch: 'main',
     aemEnvironment: 'aem-stage-east.adobeaemcloud.com',
+    aemAuthorUrl: 'https://author-p12345-e67890.adobeaemcloud.com',
+    aemAuthoringPath: '/content/experience-league/us/en',
     llmProvider: 'Claude 3.7 Sonnet (Hybrid)',
     blocksCount: 12,
     healthScore: 99,
@@ -50,6 +54,8 @@ export const INITIAL_DEMO_PROJECTS: UserProject[] = [
     repo: 'adobe-marketing/wknd-eds-storefront',
     branch: 'preview',
     aemEnvironment: 'wknd-prod.adobeaemcloud.com',
+    aemAuthorUrl: 'https://author-p54321-e98765.adobeaemcloud.com',
+    aemAuthoringPath: '/content/wknd/us/en',
     llmProvider: 'OpenAI GPT-4o',
     blocksCount: 8,
     healthScore: 98,
@@ -67,6 +73,8 @@ export const INITIAL_DEMO_PROJECTS: UserProject[] = [
     repo: 'adobe-design/eds-design-tokens',
     branch: 'develop',
     aemEnvironment: 'design-preview.adobeaemcloud.com',
+    aemAuthorUrl: 'https://author-p11223-e44556.adobeaemcloud.com',
+    aemAuthoringPath: '/content/eds-tokens/global/en',
     llmProvider: 'Ollama Llama 3.3 (Local)',
     blocksCount: 24,
     healthScore: 100,
@@ -114,6 +122,8 @@ export function saveProject(formData: any): UserProject {
     repo: formData.githubRepo || 'user/aem-eds-project',
     branch: formData.githubBranch || 'main',
     aemEnvironment: formData.aemPreviewUrl || formData.aemAuthorUrl || 'localhost:3000',
+    aemAuthorUrl: formData.aemAuthorUrl || '',
+    aemAuthoringPath: formData.aemAuthoringPath || '',
     llmProvider: formData.llmProvider ? `${formData.llmProvider} (${formData.llmModel || 'default'})` : 'Ollama Llama 3.3 (Local)',
     blocksCount: 0,
     healthScore: 100,

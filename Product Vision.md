@@ -330,7 +330,7 @@ Start with a Figma design, existing website,or existing EDS project.
    Step 3 — Repository
    GitHub repositoryBranch
    Step 4 — AEM
-   AEM AuthorAEM PreviewEnvironment
+   AEM Author · AEM Authoring Page Path (e.g. /content/mysite/us/en) · AEM Preview · Environment
    Step 5 — AI
    ProviderAPI URLAPI KeyModel
    Step 6 — Quality
