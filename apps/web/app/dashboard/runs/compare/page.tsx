@@ -164,6 +164,7 @@ export default function RunComparePage() {
   const [activeTab, setActiveTab] = useState<'visual' | 'code' | 'gates'>('code');
   const [selectedFileIndex, setSelectedFileIndex] = useState(0);
   const [sliderPosition, setSliderPosition] = useState(50);
+  const hasRuns = false; // No runs executed yet
 
   const activeFile = RUN_A.files[selectedFileIndex];
 
@@ -180,7 +181,7 @@ export default function RunComparePage() {
             <span>Comparison Observatory</span>
           </div>
           <h1 style={{ fontSize: '24px', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-            Run Comparison: {RUN_A.id} vs {RUN_B.id}
+            Run Comparison Observatory
           </h1>
           <p style={{ fontSize: '13px', margin: '4px 0 0', color: 'var(--text-secondary)' }}>
             Side-by-side quality metrics, visual regression differences, and atomic code diffs
@@ -206,6 +207,52 @@ export default function RunComparePage() {
         </div>
       </div>
 
+      {!hasRuns ? (
+        <div
+          style={{
+            padding: '64px 24px',
+            textAlign: 'center',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 'var(--radius-lg)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '14px',
+          }}
+        >
+          <div style={{ fontSize: '36px' }}>⚖️</div>
+          <div style={{ maxWidth: '440px' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 8px 0' }}>
+              No Runs Available for Comparison
+            </h3>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+              At least two completed runs are required to compare visual regression diffs, performance metrics, and generated code side-by-side.
+            </p>
+          </div>
+          <Link
+            href="/dashboard/runs"
+            style={{
+              marginTop: '8px',
+              background: 'var(--color-primary)',
+              color: '#ffffff',
+              padding: '9px 18px',
+              borderRadius: 'var(--radius-md)',
+              fontSize: '13px',
+              fontWeight: 600,
+              textDecoration: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <span>⚡</span>
+            <span>Go to Runs Manager</span>
+          </Link>
+        </div>
+      ) : (
+        <>
       {/* Comparison Scorecard Grid */}
       <div
         style={{
@@ -537,6 +584,8 @@ export default function RunComparePage() {
             </table>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

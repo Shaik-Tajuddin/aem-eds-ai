@@ -29,146 +29,7 @@ interface ActivityEventItem {
   status: 'success' | 'warning' | 'error' | 'running';
 }
 
-const INITIAL_EVENTS: ActivityEventItem[] = [
-  {
-    id: 'act-001',
-    runId: 'RUN-000142',
-    project: 'Product Website',
-    actor: 'Autonomous Bug Fixer',
-    actorRole: 'fix',
-    type: 'fix',
-    title: 'Remediated responsive layout overflow on mobile viewport',
-    intent: 'Fix horizontal scroll on viewports < 600px',
-    rationale: 'Hero grid columns had fixed min-width 400px causing overflow on 375px screens. Switched to fr units and auto-fit.',
-    isAiClaim: false,
-    evidenceType: 'git_commit',
-    evidenceDetails: {
-      files: ['blocks/hero/hero.css'],
-      diffSnippet: `- grid-template-columns: repeat(2, minmax(400px, 1fr));\n+ grid-template-columns: 1fr;\n+ @media (min-width: 900px) {\n+   grid-template-columns: 1fr 1fr;\n+ }`,
-      tokens: { input: 2150, output: 420 },
-      latencyMs: 1420,
-    },
-    timestamp: '2 minutes ago',
-    status: 'success',
-  },
-  {
-    id: 'act-002',
-    runId: 'RUN-000142',
-    project: 'Product Website',
-    actor: 'QA Automation Engineer',
-    actorRole: 'qa',
-    type: 'qa',
-    title: 'Visual Regression Suite passed: 97.8% similarity score',
-    intent: 'Compare Playwright screenshots against Figma frame baseline',
-    rationale: 'Similarity score exceeds project threshold (95.0%). Discrepancies localized to anti-aliased font rendering.',
-    isAiClaim: false,
-    evidenceType: 'visual_diff',
-    evidenceDetails: {
-      metrics: {
-        'Baseline Frame': 'Desktop 1440px',
-        'Viewport Tested': '1440x900 Chromium',
-        'Mismatched Pixels': '0.84%',
-        'Visual Score': '97.8 / 100',
-      },
-      latencyMs: 3850,
-    },
-    timestamp: '8 minutes ago',
-    status: 'success',
-  },
-  {
-    id: 'act-003',
-    runId: 'RUN-000142',
-    project: 'Product Website',
-    actor: 'Universal Editor Specialist',
-    actorRole: 'architect',
-    type: 'tool',
-    title: 'Generated Universal Editor authoring models for Hero Block',
-    intent: 'Export _component-definition.json and _component-models.json',
-    rationale: 'Provides in-context WYSIWYG authoring for marketers directly inside AEM Universal Editor.',
-    isAiClaim: false,
-    evidenceType: 'tool_output',
-    evidenceDetails: {
-      toolName: 'ue:generate_models',
-      sanitizedInput: { block: 'hero', fields: ['title', 'text', 'image', 'cta'] },
-      sanitizedOutput: { createdFiles: ['_component-definition.json', '_component-models.json'], validSchema: true },
-      tokens: { input: 1420, output: 610 },
-      latencyMs: 980,
-    },
-    timestamp: '15 minutes ago',
-    status: 'success',
-  },
-  {
-    id: 'act-004',
-    runId: 'RUN-000142',
-    project: 'Product Website',
-    actor: 'EDS Developer Agent',
-    actorRole: 'eds-developer',
-    type: 'code',
-    title: 'Implemented vanilla JS block decorator: blocks/hero/hero.js',
-    intent: 'Create performant DOM decorator following EDS boilerplate conventions',
-    rationale: 'Eliminated heavy dependencies. Decoded picture elements directly with zero layout shift.',
-    isAiClaim: true,
-    evidenceType: 'git_commit',
-    evidenceDetails: {
-      files: ['blocks/hero/hero.js', 'blocks/hero/hero.css'],
-      diffSnippet: `+ export default function decorate(block) {\n+   const [pictureRow, textRow] = [...block.children];\n+   pictureRow?.classList.add('hero-image-wrapper');\n+   textRow?.classList.add('hero-content');\n+ }`,
-      tokens: { input: 3200, output: 850 },
-      latencyMs: 2100,
-    },
-    timestamp: '32 minutes ago',
-    status: 'success',
-  },
-  {
-    id: 'act-005',
-    runId: 'RUN-000140',
-    project: 'Checkout Page',
-    actor: 'Build & Syntax Checker',
-    actorRole: 'system',
-    type: 'error',
-    title: 'SyntaxError detected during ES module bundling',
-    intent: 'Verify block code compilation against rollup/esbuild',
-    rationale: 'Unclosed JSX/HTML tag found in decorated template string at hero.js:42.',
-    isAiClaim: false,
-    evidenceType: 'tool_output',
-    evidenceDetails: {
-      toolName: 'build:verify_syntax',
-      sanitizedInput: { targetFile: 'blocks/hero/hero.js' },
-      sanitizedOutput: { error: 'SyntaxError: Unexpected token < (line 42, col 12)', status: 'FAILED' },
-      latencyMs: 450,
-    },
-    timestamp: '1 hour ago',
-    status: 'error',
-  },
-  {
-    id: 'act-006',
-    runId: 'RUN-000139',
-    project: 'Banking Portal',
-    actor: 'Deployment Assistant',
-    actorRole: 'deployment',
-    type: 'deployment',
-    title: 'Created Pull Request #47 with Live EDS Preview URL',
-    intent: 'Deliver evidence-backed PR for human code review',
-    rationale: 'All 7 quality gates passed (Build, Unit, Visual 96.1%, A11y 100%, Lighthouse 99/100).',
-    isAiClaim: false,
-    evidenceType: 'tool_output',
-    evidenceDetails: {
-      toolName: 'github:create_pr',
-      sanitizedInput: {
-        headBranch: 'aeds/run-RUN-000139',
-        baseBranch: 'main',
-        title: 'feat: Banking Portal Hero & Services blocks',
-      },
-      sanitizedOutput: {
-        prNumber: 47,
-        prUrl: 'https://github.com/my-org/banking-portal/pull/47',
-        previewUrl: 'https://aeds-run-RUN-000139--banking-portal--my-org.hlx.page/',
-      },
-      latencyMs: 1200,
-    },
-    timestamp: '2 hours ago',
-    status: 'success',
-  },
-];
+const INITIAL_EVENTS: ActivityEventItem[] = [];
 
 export function ActivityObservatory() {
   const [events] = useState<ActivityEventItem[]>(INITIAL_EVENTS);
@@ -176,8 +37,8 @@ export function ActivityObservatory() {
   const [selectedProject, setSelectedProject] = useState('ALL');
   const [selectedRole, setSelectedRole] = useState('ALL');
   const [selectedType, setSelectedType] = useState('ALL');
-  const [expandedId, setExpandedId] = useState<string | null>('act-001');
-  const [isLiveStreaming, setIsLiveStreaming] = useState(true);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [isLiveStreaming, setIsLiveStreaming] = useState(false);
 
   // Filter computation
   const filteredEvents = useMemo(() => {

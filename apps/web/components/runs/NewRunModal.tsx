@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useProjects } from '../../lib/project-store';
 
 interface NewRunModalProps {
   isOpen: boolean;
@@ -9,15 +10,22 @@ interface NewRunModalProps {
 }
 
 export function NewRunModal({ isOpen, onClose, onRunCreated }: NewRunModalProps) {
-  const [projectId, setProjectId] = useState('proj-001');
-  const [taskTitle, setTaskTitle] = useState('Implement Hero Banner & Navigation blocks');
+  const { projects } = useProjects();
+  const [projectId, setProjectId] = useState('');
+  const [taskTitle, setTaskTitle] = useState('');
   const [sourceType, setSourceType] = useState<'FIGMA' | 'EXISTING_WEBSITE' | 'AEM_PAGE' | 'PROMPT'>('FIGMA');
-  const [sourceUrl, setSourceUrl] = useState('https://www.figma.com/file/aBcd1234EfGh/Design-System?node-id=402-120');
+  const [sourceUrl, setSourceUrl] = useState('');
   const [branch, setBranch] = useState('main');
   const [maxFixIterations, setMaxFixIterations] = useState(5);
   const [visualThreshold, setVisualThreshold] = useState(95);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittedStatus, setSubmittedStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (projects.length > 0 && !projectId) {
+      setProjectId(projects[0]!.id);
+    }
+  }, [projects, projectId]);
 
   if (!isOpen) return null;
 
@@ -167,6 +175,8 @@ export function NewRunModal({ isOpen, onClose, onRunCreated }: NewRunModalProps)
             <select
               value={projectId}
               onChange={(e) => setProjectId(e.target.value)}
+              disabled={projects.length === 0}
+              required
               style={{
                 background: 'var(--bg-subtle)',
                 border: '1px solid var(--border-default)',
@@ -177,9 +187,15 @@ export function NewRunModal({ isOpen, onClose, onRunCreated }: NewRunModalProps)
                 outline: 'none',
               }}
             >
-              <option value="proj-001">Product Website (adobe/aem-boilerplate)</option>
-              <option value="proj-002">Banking Portal (hlx-demo/banking-eds)</option>
-              <option value="proj-003">Retail Storefront (adobe-live/retail-eds)</option>
+              {projects.length === 0 ? (
+                <option value="">No connected projects (Create a project first)</option>
+              ) : (
+                projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.repo})
+                  </option>
+                ))
+              )}
             </select>
           </div>
 

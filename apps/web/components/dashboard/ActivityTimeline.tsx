@@ -61,13 +61,19 @@ export function ActivityTimeline({ events }: ActivityTimelineProps) {
         className="card"
         style={{ overflow: 'hidden' }}
       >
-        {events.map((event, index) => (
-          <EventRow
-            key={event.id}
-            event={event}
-            isLast={index === events.length - 1}
-          />
-        ))}
+        {events.length === 0 ? (
+          <div style={{ padding: '36px 20px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: '13px' }}>
+            No recent activity recorded yet
+          </div>
+        ) : (
+          events.map((event, index) => (
+            <EventRow
+              key={event.id}
+              event={event}
+              isLast={index === events.length - 1}
+            />
+          ))
+        )}
       </div>
     </section>
   );

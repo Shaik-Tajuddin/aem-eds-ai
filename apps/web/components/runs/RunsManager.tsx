@@ -29,103 +29,7 @@ interface RunItem {
   stepsCompleted: string[];
 }
 
-const RUNS_DATA: RunItem[] = [
-  {
-    id: 'RUN-000142',
-    projectId: 'proj-001',
-    projectName: 'Product Website',
-    source: 'FIGMA',
-    branch: 'aeds/run-RUN-000142',
-    status: 'QUALITY_GATE',
-    currentPhaseText: 'Validating Visual Regression & A11y',
-    progress: 88,
-    fixIterations: 1,
-    maxFixIterations: 5,
-    runtime: '12m 45s',
-    startedAt: '15m ago',
-    previewUrl: 'https://aeds-run-RUN-000142--product-website--my-org.hlx.page/',
-    qualityGates: {
-      build: true,
-      tests: true,
-      visual: { passed: true, score: 97.8 },
-      a11y: true,
-      performance: { passed: true, score: 99 },
-    },
-    stepsCompleted: ['RECEIVED', 'ANALYZING', 'PLANNING', 'IMPLEMENTING', 'BUILDING', 'DEPLOYING_PREVIEW', 'UE_AUTHORING', 'FUNCTIONAL_TESTING'],
-  },
-  {
-    id: 'RUN-000143',
-    projectId: 'proj-002',
-    projectName: 'Banking Portal',
-    source: 'AEM_PAGE',
-    branch: 'aeds/run-RUN-000143',
-    status: 'IMPLEMENTING',
-    currentPhaseText: 'Decorating Cards & Loan Calculator blocks',
-    progress: 42,
-    fixIterations: 0,
-    maxFixIterations: 5,
-    runtime: '4m 10s',
-    startedAt: '5m ago',
-    qualityGates: {
-      build: true,
-      tests: false,
-      visual: { passed: false, score: 0 },
-      a11y: false,
-      performance: { passed: false, score: 0 },
-    },
-    stepsCompleted: ['RECEIVED', 'ANALYZING', 'PLANNING'],
-  },
-  {
-    id: 'RUN-000139',
-    projectId: 'proj-002',
-    projectName: 'Banking Portal',
-    source: 'FIGMA',
-    branch: 'aeds/run-RUN-000139',
-    status: 'PR_CREATED',
-    currentPhaseText: 'Pull Request #47 Delivered & Waiting Approval',
-    progress: 100,
-    fixIterations: 2,
-    maxFixIterations: 5,
-    runtime: '16m 20s',
-    startedAt: '2h ago',
-    previewUrl: 'https://aeds-run-RUN-000139--banking-portal--my-org.hlx.page/',
-    prUrl: 'https://github.com/my-org/banking-portal/pull/47',
-    qualityGates: {
-      build: true,
-      tests: true,
-      visual: { passed: true, score: 96.1 },
-      a11y: true,
-      performance: { passed: true, score: 98 },
-    },
-    stepsCompleted: [
-      'RECEIVED', 'ANALYZING', 'PLANNING', 'IMPLEMENTING', 'BUILDING',
-      'DEPLOYING_PREVIEW', 'UE_AUTHORING', 'FUNCTIONAL_TESTING',
-      'VISUAL_VALIDATION', 'ACCESSIBILITY', 'PERFORMANCE', 'QUALITY_GATE', 'PR_CREATED'
-    ],
-  },
-  {
-    id: 'RUN-000140',
-    projectId: 'proj-003',
-    projectName: 'Checkout Page',
-    source: 'EXISTING_WEBSITE',
-    branch: 'aeds/run-RUN-000140',
-    status: 'FAILED',
-    currentPhaseText: 'ES Module SyntaxError at hero.js:42',
-    progress: 35,
-    fixIterations: 3,
-    maxFixIterations: 5,
-    runtime: '7m 15s',
-    startedAt: '3h ago',
-    qualityGates: {
-      build: false,
-      tests: false,
-      visual: { passed: false, score: 0 },
-      a11y: false,
-      performance: { passed: false, score: 0 },
-    },
-    stepsCompleted: ['RECEIVED', 'ANALYZING', 'PLANNING'],
-  },
-];
+const RUNS_DATA: RunItem[] = [];
 
 const ALL_PIPELINE_STEPS = [
   'RECEIVED',
@@ -244,7 +148,51 @@ export function RunsManager() {
 
       {/* Runs List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-        {filteredRuns.map((run) => (
+        {filteredRuns.length === 0 ? (
+          <div
+            style={{
+              padding: '48px 24px',
+              textAlign: 'center',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-default)',
+              borderRadius: 'var(--radius-lg)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '12px',
+            }}
+          >
+            <div style={{ fontSize: '32px' }}>⚡</div>
+            <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)' }}>
+              {statusFilter === 'ALL' ? 'No Autonomous Runs Recorded' : `No Runs Match Filter "${statusFilter}"`}
+            </div>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, maxWidth: '400px', lineHeight: 1.5 }}>
+              Trigger an autonomous run to synthesize blocks, execute browser tests, validate visual diffs, and generate pull requests.
+            </p>
+            <button
+              onClick={() => setIsNewRunModalOpen(true)}
+              style={{
+                marginTop: '8px',
+                background: 'var(--color-primary)',
+                color: '#ffffff',
+                border: 'none',
+                padding: '9px 18px',
+                borderRadius: 'var(--radius-md)',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <span>⚡</span>
+              <span>Start Autonomous Run</span>
+            </button>
+          </div>
+        ) : (
+          filteredRuns.map((run) => (
           <div
             key={run.id}
             style={{
@@ -411,7 +359,7 @@ export function RunsManager() {
               </div>
             </div>
           </div>
-        ))}
+        )))}
       </div>
 
       {/* State Machine Modal Inspector */}

@@ -24,9 +24,9 @@ interface ProjectsGridProps {
 }
 
 export function ProjectsGrid({ projects: initialProjects = [] }: ProjectsGridProps) {
-  const { projects: storedProjects, isLiveMode } = useProjects();
+  const { projects: storedProjects } = useProjects();
 
-  const displayProjects: ProjectCard[] = isLiveMode
+  const displayProjects: ProjectCard[] = storedProjects.length > 0
     ? storedProjects.map((p) => ({
         id: p.id,
         name: p.name,
@@ -35,8 +35,8 @@ export function ProjectsGrid({ projects: initialProjects = [] }: ProjectsGridPro
         eds: true,
         aem: !!p.aemEnvironment,
         ue: true,
-        testsTotal: p.blocksCount > 0 ? p.blocksCount * 8 : 12,
-        testsPassed: p.blocksCount > 0 ? p.blocksCount * 8 : 12,
+        testsTotal: p.blocksCount > 0 ? p.blocksCount * 8 : 0,
+        testsPassed: p.blocksCount > 0 ? p.blocksCount * 8 : 0,
         visualScore: p.healthScore,
         lastRunAt: p.lastRunTime,
       }))
@@ -52,18 +52,42 @@ export function ProjectsGrid({ projects: initialProjects = [] }: ProjectsGridPro
           marginBottom: '12px',
         }}
       >
-        <h2 className="section-title">
-          Projects {isLiveMode && <span style={{ fontSize: '11px', color: 'var(--color-success)', fontFamily: 'var(--font-mono)' }}>(Live)</span>}
-        </h2>
+        <h2 className="section-title">Projects</h2>
         <Link href="/dashboard/projects" className="btn btn-ghost btn-sm">
           View all
         </Link>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {displayProjects.map((project) => (
-          <ProjectRow key={project.id} project={project} />
-        ))}
+        {displayProjects.length === 0 ? (
+          <div
+            className="card"
+            style={{
+              padding: '36px 20px',
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '10px',
+            }}
+          >
+            <p style={{ color: 'var(--text-tertiary)', fontSize: '13px', margin: 0 }}>
+              No EDS projects connected yet.
+            </p>
+            <Link
+              href="/dashboard/projects/new"
+              className="btn btn-primary btn-sm"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            >
+              <span>Connect First Project</span>
+            </Link>
+          </div>
+        ) : (
+          displayProjects.map((project) => (
+            <ProjectRow key={project.id} project={project} />
+          ))
+        )}
       </div>
     </section>
   );

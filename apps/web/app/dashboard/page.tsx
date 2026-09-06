@@ -5,7 +5,6 @@ import { AttentionSection } from '../../components/dashboard/AttentionSection';
 import { ActiveRunsSection } from '../../components/dashboard/ActiveRunsSection';
 import { ProjectsGrid } from '../../components/dashboard/ProjectsGrid';
 import { ActivityTimeline } from '../../components/dashboard/ActivityTimeline';
-import { DemoBanner } from '../../components/dashboard/DemoBanner';
 import {
   kpiData,
   activeRuns,
@@ -36,9 +35,6 @@ export default function OverviewPage() {
           width: '100%',
         }}
       >
-        {/* Demo data notice */}
-        <DemoBanner />
-
         {/* KPI Strip */}
         <KPIStrip items={kpiData} />
 

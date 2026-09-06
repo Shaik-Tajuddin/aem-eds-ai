@@ -25,79 +25,21 @@ export interface UserProject {
 const STORAGE_KEY = 'aeds_user_projects';
 const PROJECT_EVENT = 'aeds_projects_updated';
 
-export const INITIAL_DEMO_PROJECTS: UserProject[] = [
-  {
-    id: 'proj-001',
-    name: 'AEDS Core Boilerplate',
-    description: 'Adobe Experience League official Edge Delivery Services boilerplate.',
-    sourceType: 'FIGMA',
-    sourceUrl: 'https://www.figma.com/file/demo/AEDS-Boilerplate',
-    repo: 'adobe-experience-league/aeds-boilerplate',
-    branch: 'main',
-    aemEnvironment: 'aem-stage-east.adobeaemcloud.com',
-    aemAuthorUrl: 'https://author-p12345-e67890.adobeaemcloud.com',
-    aemAuthoringPath: '/content/experience-league/us/en',
-    llmProvider: 'Claude 3.7 Sonnet (Hybrid)',
-    blocksCount: 12,
-    healthScore: 99,
-    lastRunStatus: 'PASSED',
-    lastRunTime: '18 mins ago',
-    createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
-    isCustom: false,
-  },
-  {
-    id: 'proj-002',
-    name: 'WKND Brand & Commerce EDS',
-    description: 'High-speed headless commerce storefront built on EDS.',
-    sourceType: 'EXISTING_WEBSITE',
-    sourceUrl: 'https://wknd.site',
-    repo: 'adobe-marketing/wknd-eds-storefront',
-    branch: 'preview',
-    aemEnvironment: 'wknd-prod.adobeaemcloud.com',
-    aemAuthorUrl: 'https://author-p54321-e98765.adobeaemcloud.com',
-    aemAuthoringPath: '/content/wknd/us/en',
-    llmProvider: 'OpenAI GPT-4o',
-    blocksCount: 8,
-    healthScore: 98,
-    lastRunStatus: 'PASSED',
-    lastRunTime: '2 hours ago',
-    createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
-    isCustom: false,
-  },
-  {
-    id: 'proj-003',
-    name: 'Universal Design System Library',
-    description: 'Design tokens and atomic block components.',
-    sourceType: 'EXISTING_EDS_PROJECT',
-    sourceUrl: 'https://github.com/adobe-design/eds-design-tokens',
-    repo: 'adobe-design/eds-design-tokens',
-    branch: 'develop',
-    aemEnvironment: 'design-preview.adobeaemcloud.com',
-    aemAuthorUrl: 'https://author-p11223-e44556.adobeaemcloud.com',
-    aemAuthoringPath: '/content/eds-tokens/global/en',
-    llmProvider: 'Ollama Llama 3.3 (Local)',
-    blocksCount: 24,
-    healthScore: 100,
-    lastRunStatus: 'PASSED',
-    lastRunTime: '5 hours ago',
-    createdAt: new Date(Date.now() - 7 * 86400000).toISOString(),
-    isCustom: false,
-  },
-];
+export const INITIAL_DEMO_PROJECTS: UserProject[] = [];
 
 export function getStoredProjects(): UserProject[] {
-  if (typeof window === 'undefined') return INITIAL_DEMO_PROJECTS;
+  if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return INITIAL_DEMO_PROJECTS;
+    if (!raw) return [];
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length > 0) {
+    if (Array.isArray(parsed)) {
       return parsed;
     }
   } catch (e) {
     console.error('Failed to read stored projects:', e);
   }
-  return INITIAL_DEMO_PROJECTS;
+  return [];
 }
 
 export function hasCustomProjects(): boolean {
