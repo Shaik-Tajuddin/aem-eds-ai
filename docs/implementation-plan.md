@@ -57,7 +57,7 @@ This document contains the engineering blueprint and phased execution roadmap fo
 
 ### Phase 8 — AEM Cloud & Universal Editor Adapter ✅ (partial)
 - `@aeds/aem`: Authenticated AEM Cloud Client (preview/publish dispatch, Content Fragments, JCR query).
-- Universal Editor Model Generator (`_component-definition.json`, `_component-models.json`, `_component-filters.json`).
+- Universal Editor Model Generator (`component-definition.json`, `component-models.json`, `component-filters.json` via XWalk `blocks/*/_*.json` + `build:json`).
 - DOM Instrumentation Validator (`data-aue-*` compliance).
 - Authoring Cycle Tester (simulation; live UE browser loop still feature-flagged).
 - Universal Editor Dashboard (`/dashboard/ue`).

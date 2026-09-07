@@ -23,7 +23,7 @@ Complete the final release milestone for **AI EDS Developer**: containerized pro
      2. RAG knowledge query for EDS block patterns
      3. State machine planning and EDS architecture definition
      4. Code synthesis (JavaScript, CSS, block markup)
-     5. Universal Editor schema generation (`_component-models.json`, `_component-definition.json`, `_component-filters.json`)
+     5. Universal Editor schema generation (`component-models.json`, `component-definition.json`, `component-filters.json` via XWalk sources + `build:json`)
      6. DOM instrumentation with `data-aue-*` attributes
      7. Git branch and commit staging
      8. Browser test execution and A11y audit

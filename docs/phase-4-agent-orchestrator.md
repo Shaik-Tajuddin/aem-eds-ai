@@ -34,7 +34,7 @@ If quality checks fail at any validation stage:
 - **`ProjectAnalyzerAgent`** (`RunStatus.ANALYZING`): Scans EDS repository structure, checks for `fstab.yaml`, `scripts/scripts.js`, and catalogues existing block types.
 - **`ArchitectureAgent`** (`RunStatus.PLANNING`): Deconstructs the design into semantic EDS sections, establishes CSS custom property design tokens, and defines authoring schemas.
 - **`EdsDeveloperAgent`** (`RunStatus.IMPLEMENTING`): Generates vanilla JavaScript block decorators (`export default function decorate(block)`) and scoped CSS. Zero external frontend framework dependencies.
-- **`UniversalEditorAgent`** (`RunStatus.UE_AUTHORING`): Generates `_component-definition.json` and `_component-models.json` for AEM Universal Editor authoring.
+- **`UniversalEditorAgent`** (`RunStatus.UE_AUTHORING`): Generates XWalk `blocks/<id>/_<id>.json` (+ `models/_section.json`) that `build:json` compiles into `component-definition.json` / `component-models.json` for AEM Universal Editor authoring.
 - **`QAValidationAgent`** (`RunStatus.FUNCTIONAL_TESTING`): Audits block decorator signatures, DOM queries, and styling scoping.
 - **`FixAgent`** (`RunStatus.FIXING`): Analyzes defects filed in `context.bugs`, diagnoses the root cause, and applies targeted code repairs.
 - **`DeploymentAgent`** (`RunStatus.PR_CREATED`): Packages accumulated files, commits to the target branch, and opens the evidence-backed GitHub Pull Request.

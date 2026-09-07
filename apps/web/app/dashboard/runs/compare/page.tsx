@@ -103,7 +103,7 @@ const RUN_A: RunComparisonData = {
 }`,
     },
     {
-      path: '_component-definition.json',
+      path: 'component-definition.json',
       additions: 32,
       deletions: 0,
       contentA: `{

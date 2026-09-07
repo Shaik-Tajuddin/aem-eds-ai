@@ -42,20 +42,20 @@ This document specifies the technical architecture, contracts, and test plans fo
 - Strictly adheres to product vision: fails loudly if credentials are unset or invalid.
 
 ### 4. Universal Editor Model Generator (`src/models.ts`)
-- Automatically generates the 3 official Universal Editor configuration files from block manifests:
-  - `_component-definition.json`
-  - `_component-models.json`
-  - `_component-filters.json`
+- Builds the 3 official Universal Editor root aggregates from block manifests (via XWalk sources + `build:json`):
+  - `component-definition.json`
+  - `component-models.json`
+  - `component-filters.json`
 - Supports automatic field type inference (e.g. image URLs mapped to `reference` with `mimeType: ["image/*"]`, headings to `text`, body copy to `richtext`).
 
 ### 5. DOM Instrumentation Validator (`src/validator.ts`)
 - Validates that generated EDS blocks have proper Adobe Universal Editor attributes:
   - `data-aue-resource`: JCR or content fragment item path.
   - `data-aue-type`: `component` (block container) or `text` / `reference` (field).
-  - `data-aue-model`: ID matching `_component-models.json`.
+  - `data-aue-model`: ID matching `component-models.json`.
   - `data-aue-prop`: Property name matching field schema.
   - `data-aue-behavior`: `component` or `inline`.
-  - `data-aue-filter`: Filter ID matching `_component-filters.json`.
+  - `data-aue-filter`: Filter ID matching `component-filters.json`.
 
 ### 6. Authoring Tester (`src/tester.ts`)
 - Autonomous verification of the authoring cycle:

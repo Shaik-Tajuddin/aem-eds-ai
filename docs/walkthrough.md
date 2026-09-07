@@ -64,7 +64,7 @@ The platform is structured as a high-performance TypeScript monorepo managed wit
   - `ProjectAnalyzerAgent`: Scans existing EDS repo structure.
   - `ArchitectureAgent`: Formulates the EDS Architecture Blueprint.
   - `EdsDeveloperAgent`: Generates vanilla JS block decorators (`decorate(block)`) and scoped CSS.
-  - `UniversalEditorAgent`: Generates `_component-definition.json` and `_component-models.json` for AEM authoring.
+  - `UniversalEditorAgent`: Generates XWalk `blocks/<id>/_<id>.json` (+ `models/_section.json`) that compile into `component-definition.json` / `component-models.json` for AEM authoring.
   - `QAValidationAgent`: Validates EDS conventions, DOM queries, and dependencies.
   - `FixAgent`: Diagnoses defects with capped iteration loops.
   - `DeploymentAgent`: Commits code and delivers pull requests with preview endpoints.
@@ -88,7 +88,7 @@ The platform is structured as a high-performance TypeScript monorepo managed wit
 
 ### 7. AEM Cloud & Universal Editor Adapter (`@aeds/aem`)
 - **Authenticated AEM Cloud Client**: Dispatches live page preview and publication requests (`/bin/replicate.json`), extracts structured Content Fragments via Assets API, and executes JCR queries.
-- **Universal Editor Model Generator**: Generates `_component-definition.json`, `_component-models.json`, and `_component-filters.json` conforming to official Adobe UE specifications.
+- **Universal Editor Model Generator**: Generates `component-definition.json`, `component-models.json`, and `component-filters.json` (via XWalk `blocks/*/_*.json` + `build:json`) conforming to official Adobe UE specifications.
 - **DOM Instrumentation Validator**: Inspects block HTML decoration for required `data-aue-*` attributes (`data-aue-resource`, `data-aue-type`, `data-aue-model`, `data-aue-prop`).
 - **Authoring Cycle Tester**: Verifies that authored values persist and render properly into the live DOM.
 
@@ -212,9 +212,11 @@ A single command (`npm run demo`) drives the complete autonomous engineering lif
   Generated Component Architecture Plan:
     + [STAGED] blocks/hero/hero.js
     + [STAGED] blocks/hero/hero.css
-    + [STAGED] models/_component-models.json
-    + [STAGED] models/_component-definition.json
-    + [STAGED] models/_component-filters.json
+    + [STAGED] blocks/hero/_hero.json
+    + [STAGED] models/_section.json
+    + [COMPILED] component-models.json
+    + [COMPILED] component-definition.json
+    + [COMPILED] component-filters.json
     + [STAGED] index.html
     + [STAGED] tests/hero.test.ts
   ✔ State transitioned: PLANNING ➔ CODE_GENERATION
@@ -225,9 +227,9 @@ A single command (`npm run demo`) drives the complete autonomous engineering lif
   ✔ Generated 2 block code assets (68 lines of clean, dependency-free code)
 
 ▶ STEP 5: Universal Editor Contracts & DOM Instrumentation [✓ COMPLETED]
-  Generated models:_component-definition.json (1 component)
-  Generated models:_component-models.json (4 authored fields)
-  Generated models:_component-filters.json (Section filter mapping)
+  Generated blocks/hero/_hero.json → component-definition.json (1 component)
+  Generated blocks/hero/_hero.json → component-models.json (4 authored fields)
+  Generated models/_section.json → component-filters.json (Section filter mapping)
   ✔ Universal Editor schema validation: PASSED (data-aue-* DOM valid: true)
 
 ▶ STEP 6: Playwright Headless Browser Testing & Audits (State: TESTING) [✓ COMPLETED]

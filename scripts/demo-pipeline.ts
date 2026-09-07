@@ -103,9 +103,11 @@ async function runAutonomousPipelineDemo() {
   const plannedFiles = [
     'blocks/hero/hero.js',
     'blocks/hero/hero.css',
-    'models/_component-models.json',
-    'models/_component-definition.json',
-    'models/_component-filters.json',
+    'blocks/hero/_hero.json',
+    'models/_section.json',
+    'component-models.json',
+    'component-definition.json',
+    'component-filters.json',
     'index.html',
     'tests/hero.test.ts',
   ];
@@ -213,9 +215,9 @@ async function runAutonomousPipelineDemo() {
 
   const check = validator.validateBlockInstrumentation(instrumentedHtml, 'hero', ['headline', 'leadText', 'backgroundImage']);
 
-  console.log(`  ${colors.dim}Generated models:_component-definition.json (${ueContracts.definitions.length} component)${colors.reset}`);
-  console.log(`  ${colors.dim}Generated models:_component-models.json (${ueContracts.models[0].fields.length} authored fields)${colors.reset}`);
-  console.log(`  ${colors.dim}Generated models:_component-filters.json (Section filter mapping)${colors.reset}`);
+  console.log(`  ${colors.dim}Generated blocks/hero/_hero.json → component-definition.json (${ueContracts.definitions.length} component)${colors.reset}`);
+  console.log(`  ${colors.dim}Generated blocks/hero/_hero.json → component-models.json (${ueContracts.models[0].fields.length} authored fields)${colors.reset}`);
+  console.log(`  ${colors.dim}Generated models/_section.json → component-filters.json (Section filter mapping)${colors.reset}`);
   console.log(`  ${colors.green}✔ Universal Editor schema validation: PASSED (data-aue-* DOM valid: ${check.valid})${colors.reset}`);
 
   // ─────────────────────────────────────────────────────────────

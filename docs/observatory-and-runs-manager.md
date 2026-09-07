@@ -69,7 +69,7 @@ The Comparison Observatory enables granular, side-by-side comparative inspection
   - Total execution runtime (21% faster execution comparison)
   - Self-healing convergence passes
 - **Interactive Multi-File Code Diff Tab**:
-  - Compares generated code assets (`blocks/hero/hero.js`, `blocks/hero/hero.css`, `_component-definition.json`).
+  - Compares generated code assets (`blocks/hero/hero.js`, `blocks/hero/hero.css`, `blocks/hero/_hero.json` → `component-definition.json`).
   - File picker displaying addition counts (`+42`).
   - Side-by-side syntax-highlighted code panels.
 - **Visual Diff & Preview Tab**:

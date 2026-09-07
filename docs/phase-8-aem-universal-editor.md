@@ -16,10 +16,11 @@ Phase 8 implemented `@aeds/aem`, the Adobe Experience Manager (AEM) Cloud and Un
   - **Fails Loudly per §75**: Requires valid IMS Service Credentials or Bearer Token; rejects missing credentials with typed `AemError` (`AUTHENTICATION_REQUIRED`).
 
 ### 2. Universal Editor Model Generator (`src/models.ts`)
-- **`UniversalEditorModelGenerator`**: Generates Adobe-standard configuration files:
-  - **`_component-definition.json`**: Component catalog specifying component ID, display title, category, and authoring UI plugins.
-  - **`_component-models.json`**: Field schemas supporting text, rich text, image references, links (`aem-content`), select dropdowns, booleans, and numbers.
-  - **`_component-filters.json`**: Container-level placement and nesting rules.
+- **`UniversalEditorModelGenerator`**: Builds Adobe-standard UE payloads compiled into root aggregates:
+  - **`component-definition.json`**: Component catalog specifying component ID, display title, category, and authoring UI plugins.
+  - **`component-models.json`**: Field schemas supporting text, rich text, image references, links (`aem-content`), select dropdowns, booleans, and numbers.
+  - **`component-filters.json`**: Container-level placement and nesting rules.
+  - XWalk sources live under `blocks/<id>/_<id>.json` and `models/_*.json`; never write root `_component-*.json`.
   - **Smart Type Inference**: Automatically infers field types based on EDS block naming conventions (e.g. `icon`/`photo` → `reference`, `ctaUrl` → `aem-content`, `description` → `richtext`).
 
 ### 3. DOM Instrumentation Validator (`src/validator.ts`)

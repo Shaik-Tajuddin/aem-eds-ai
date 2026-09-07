@@ -69,8 +69,10 @@ describe('Agent Orchestrator & State Machine', () => {
       const paths = result.files.map((f) => f.path);
       expect(paths).toContain('blocks/hero/hero.js');
       expect(paths).toContain('blocks/hero/hero.css');
-      expect(paths).toContain('_component-definition.json');
-      expect(paths).toContain('_component-models.json');
+      // XWalk sources — build:json compiles these into root component-*.json (no underscore)
+      expect(paths).toContain('blocks/hero/_hero.json');
+      expect(paths).not.toContain('_component-definition.json');
+      expect(paths).not.toContain('_component-models.json');
       // In tests GitHub is skipped → _section.json treated as NotFound and created
       expect(paths).toContain('models/_section.json');
       const sectionFile = result.files.find((f) => f.path === 'models/_section.json');

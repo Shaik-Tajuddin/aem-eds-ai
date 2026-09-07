@@ -6,10 +6,19 @@ Configure and validate authoring contracts so content is editable and persisted 
 
 ## Artifacts
 
-- `_component-definition.json`
-- `_component-models.json`
-- `_component-filters.json`
-- `data-aue-*` DOM instrumentation
+**Root aggregates** (Universal Editor reads these; produced by `build:json`):
+
+- `component-definition.json`
+- `component-models.json`
+- `component-filters.json`
+
+**XWalk sources** (what the agent writes; compiled into the aggregates):
+
+- `blocks/<id>/_<id>.json`
+- `models/_section.json`
+- `models/_component-definition.json` / `models/_component-models.json` / `models/_component-filters.json` (boilerplate fragments)
+
+Also: `data-aue-*` DOM instrumentation
 
 ## Classes (`@aeds/aem`)
 

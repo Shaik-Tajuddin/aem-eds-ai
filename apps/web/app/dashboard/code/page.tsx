@@ -79,7 +79,7 @@ const FILES = [
 }`,
   },
   {
-    name: 'models/_component-definition.json',
+    name: 'component-definition.json',
     type: 'json',
     linesAdded: 16,
     linesRemoved: 0,

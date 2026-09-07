@@ -25,7 +25,7 @@ The implementation has systematically realized this vision across **12 distinct 
 | **Tool Policy & Security** | Risk tiers (low/med/high/critical), human confirmation, secret redaction | Implemented in `packages/tools` (`ToolRegistry`, `ToolPolicyEngine`, recursive secret sanitizer with circular-ref guard) | **100% Complete** |
 | **Browser Testing** | Headless Playwright, block lifecycle wait, console errors, network 4xx/5xx, a11y, LCP | Implemented in `packages/browser` (`BrowserController`, viewports, CWV timings, console/network error listeners) | **100% Complete** |
 | **Visual Regression** | Pixelmatch diff, bounding box clustering, differential heatmap overlay | Implemented in `packages/visual` (`VisualComparator`, bounding boxes, diff percentage calculation) | **100% Complete** |
-| **Universal Editor** | `_component-definition.json`, `_component-models.json`, `_component-filters.json`, `data-aue-*` validation, authoring cycle tester | Implemented in `packages/aem` (`UniversalEditorModelGenerator`, `UniversalEditorValidator`, authoring tester) | **100% Complete** |
+| **Universal Editor** | `component-definition.json`, `component-models.json`, `component-filters.json` (from XWalk `blocks/*/_*.json` + `build:json`), `data-aue-*` validation, authoring cycle tester | Implemented in `packages/aem` (`UniversalEditorModelGenerator`, `UniversalEditorValidator`, authoring tester) | **100% Complete** |
 | **RAG & Knowledge** | pgvector 768-d cosine similarity, chunking, hierarchical source weighting (`project-code` 1.25x > `standards` 1.10x > `eds-docs` 1.05x) | Implemented in `packages/rag` (`EmbeddingGenerator`, `TextChunker`, `PostgresRagRepository`, `SemanticRetriever`) | **100% Complete** |
 | **Distributed Queues** | BullMQ + Redis 7 background workers for agents, browser tests, and visual diffs | Implemented in `packages/queue`, `workers/agent-worker`, and `workers/browser-worker` | **100% Complete** |
 | **Production Docker** | Multi-stage Dockerfiles for API, Web, Workers + Compose stack | Implemented in `docker/Dockerfile.api`, `docker/Dockerfile.web`, `docker/Dockerfile.worker`, `docker-compose.yml` | **100% Complete** |
@@ -77,7 +77,7 @@ All identified non-negotiable objectives and enhancements have been systematical
 
 ### Enhancement 3: Universal Editor Automation & Authoring Validation (✅ Completed)
 - **Implemented In**: `packages/aem` (`UniversalEditorModelGenerator`, `UniversalEditorValidator`, authoring tester).
-- **Capability**: Generates valid `_component-definition.json`, `_component-models.json`, and `_component-filters.json`, injects `data-aue-*` DOM attributes, and tests simulation authoring cycles.
+- **Capability**: Generates valid `component-definition.json`, `component-models.json`, and `component-filters.json` (via XWalk sources + `build:json`), injects `data-aue-*` DOM attributes, and tests simulation authoring cycles.
 
 ---
 

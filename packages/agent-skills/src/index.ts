@@ -105,7 +105,7 @@ export const EDS_UNIVERSAL_EDITOR_SKILL: AgentSkill = {
   ],
   examples: ['UE model for hero title/image fields'],
   antiPatterns: ['Fake UE PASS without open/edit/save evidence'],
-  validation: ['Valid _component-*.json', 'Optional live authoring evidence'],
+  validation: ['Valid component-*.json / blocks/*/_*.json', 'Optional live authoring evidence'],
   failureConditions: ['Invalid models', 'Content not persisted'],
 };
 

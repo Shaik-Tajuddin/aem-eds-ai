@@ -72,7 +72,7 @@ const TOOLS: ToolItem[] = [
     name: 'aem.validateUniversalEditorContracts',
     category: 'aem',
     riskLevel: 'LOW',
-    description: 'Validates _component-definition.json and _component-models.json against Adobe schemas.',
+    description: 'Validates component-definition.json and component-models.json against Adobe schemas.',
     approvalRequired: false,
     totalCalls: 0,
     lastExecuted: 'Ready',

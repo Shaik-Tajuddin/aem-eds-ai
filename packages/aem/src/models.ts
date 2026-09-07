@@ -1,7 +1,9 @@
 // ============================================================
 // @aeds/aem — Universal Editor Model Generator
-// Generates _component-definition.json, _component-models.json,
-// and _component-filters.json per Adobe Universal Editor specification
+// Builds definition / model / filter payloads for Universal Editor.
+// XWalk EDS repos: write sources under models/_*.json + blocks/*/_*.json;
+// build:json compiles root aggregates component-definition.json,
+// component-models.json, and component-filters.json (no leading underscore).
 // ============================================================
 
 import type {
@@ -73,7 +75,7 @@ export class UniversalEditorModelGenerator {
   }
 
   /**
-   * Generates _component-definition.json
+   * Generates component definition entries (compiled into component-definition.json).
    */
   generateDefinitions(manifests: BlockManifest[]): ComponentDefinition[] {
     return manifests.map((m) => ({
@@ -91,7 +93,7 @@ export class UniversalEditorModelGenerator {
   }
 
   /**
-   * Generates _component-models.json
+   * Generates component model entries (compiled into component-models.json).
    */
   generateModels(manifests: BlockManifest[]): ComponentModel[] {
     return manifests.map((m) => {
@@ -114,7 +116,7 @@ export class UniversalEditorModelGenerator {
   }
 
   /**
-   * Generates _component-filters.json for standard section containers
+   * Generates component filter entries (compiled into component-filters.json).
    */
   generateFilters(
     manifests: BlockManifest[],

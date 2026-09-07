@@ -165,7 +165,8 @@ async function readSectionModel(
 export class UniversalEditorAgent extends BaseAgent {
   public readonly id = 'agent-ue';
   public readonly name = 'Universal Editor Specialist';
-  public readonly description = 'Generates _component-definition.json and component-models for AEM authoring';
+  public readonly description =
+    'Generates XWalk block models (blocks/*/_*.json) that build:json compiles into component-definition.json / component-models.json';
   public readonly phase = RunStatus.UE_AUTHORING;
 
   public async execute(context: RunExecutionContext): Promise<AgentExecutionResult> {
@@ -173,62 +174,11 @@ export class UniversalEditorAgent extends BaseAgent {
 
     const createdBlocks = collectCreatedBlockIds(context);
 
-    const componentDefinition = {
-      groups: [
-        {
-          id: 'eds-blocks',
-          title: 'EDS Blocks',
-          components: createdBlocks.map((id) => ({
-            id,
-            title: id.charAt(0).toUpperCase() + id.slice(1),
-            description: `${id} EDS block`,
-            plugins: {
-              xwalk: {
-                page: {
-                  resourceType: 'core/franklin/components/block/v1/block',
-                  template: {
-                    name: id.charAt(0).toUpperCase() + id.slice(1),
-                    model: id,
-                  },
-                },
-              },
-            },
-          })),
-        },
-      ],
-    };
-
-    const componentModels = createdBlocks.map((id) => ({
-      id,
-      fields: [
-        {
-          component: 'text',
-          name: 'title',
-          label: 'Title',
-          valueType: 'string',
-        },
-        {
-          component: 'richtext',
-          name: 'text',
-          label: 'Body',
-          valueType: 'string',
-        },
-      ],
-    }));
-
-    context.generatedFiles.set('_component-definition.json', {
-      path: '_component-definition.json',
-      content: JSON.stringify(componentDefinition, null, 2),
-      operation: 'create',
-    });
-
-    context.generatedFiles.set('_component-models.json', {
-      path: '_component-models.json',
-      content: JSON.stringify(componentModels, null, 2),
-      operation: 'create',
-    });
-
-    const filesGenerated = ['_component-definition.json', '_component-models.json'];
+    // XWalk convention:
+    // - Source fragments: blocks/<id>/_<id>.json, models/_section.json, models/_component-*.json
+    // - Aggregates at repo root (produced by build:json): component-definition.json, component-models.json, component-filters.json
+    // Never write root _component-*.json — that is not a valid EDS path.
+    const filesGenerated: string[] = [];
 
     // Per-block XWalk model files — only when NotFound (build:json merges blocks/*/_*.json)
     for (const id of createdBlocks) {
@@ -448,8 +398,8 @@ export class UniversalEditorAgent extends BaseAgent {
       context,
       'Generate Universal Editor authoring contracts',
       [
-        'Produce _component-definition.json with block categorization',
-        'Produce _component-models.json with field definitions for generated blocks',
+        'Produce blocks/<id>/_<id>.json sources (definitions + models) for new blocks',
+        'Rely on build:json to compile root component-definition.json / component-models.json',
         sectionPlan,
         process.env.ENABLE_LIVE_UE === 'true'
           ? 'Live UE instrumentation validation (ENABLE_LIVE_UE)'
