@@ -8,6 +8,9 @@ import { BaseLLMProvider } from './providers/base.js';
 import { OpenAIProvider } from './providers/openai.js';
 import { AnthropicProvider } from './providers/anthropic.js';
 import { GeminiProvider } from './providers/gemini.js';
+import { AzureOpenAIProvider } from './providers/azure-openai.js';
+import { OllamaProvider } from './providers/ollama.js';
+import { OpenAICompatibleProvider } from './providers/openai-compatible.js';
 import { LLMError, LLMErrorCode } from './errors.js';
 import { calculateCost } from './pricing.js';
 
@@ -48,8 +51,18 @@ export class LLMGateway {
     }
   }
 
+  private static debugEnabled(): boolean {
+    const v = (process.env['LLM_DEBUG'] || '').trim().toLowerCase();
+    return v === '1' || v === 'true' || v === 'yes' || v === 'on';
+  }
+
+  private static truncateDebug(text: string, max = 24_000): string {
+    if (text.length <= max) return text;
+    return `${text.slice(0, max)}\n… [truncated ${text.length - max} chars]`;
+  }
+
   public registerProvider(config: LLMProviderConfig, apiKey?: string): void {
-    const providerName = config.provider.toLowerCase();
+    const providerName = config.provider.toLowerCase().replace(/_/g, '-');
     switch (providerName) {
       case 'openai':
         this.providers.set('openai', new OpenAIProvider(config, apiKey));
@@ -59,18 +72,32 @@ export class LLMGateway {
         break;
       case 'gemini':
       case 'google':
+      case 'google-gemini':
         this.providers.set('gemini', new GeminiProvider(config, apiKey));
         break;
+      case 'azure':
+      case 'azure-openai':
+        this.providers.set('azure-openai', new AzureOpenAIProvider(config, apiKey));
+        break;
       case 'ollama':
-        this.providers.set('ollama', new OpenAIProvider({
-          ...config,
-          apiUrl: config.apiUrl || 'http://localhost:11434/v1',
-        }, 'ollama'));
+        this.providers.set('ollama', new OllamaProvider(config, apiKey));
+        break;
+      case 'openai-compatible':
+      case 'custom':
+        this.providers.set(providerName, new OpenAICompatibleProvider(config, apiKey));
         break;
       default:
-        // Assume OpenAI-compatible API
-        this.providers.set(providerName, new OpenAIProvider(config, apiKey));
+        // Assume OpenAI-compatible API under the given name
+        this.providers.set(providerName, new OpenAICompatibleProvider({ ...config, provider: providerName }, apiKey));
     }
+  }
+
+  /** Normalize env LLM_PROVIDER values (OPENAI, azure_openai, Ollama, …) */
+  public static normalizeProviderId(raw?: string): string {
+    const v = (raw || 'openai').trim().toLowerCase().replace(/_/g, '-');
+    if (v === 'google' || v === 'google-gemini') return 'gemini';
+    if (v === 'azure') return 'azure-openai';
+    return v;
   }
 
   public getProvider(providerName?: string): BaseLLMProvider {
@@ -80,7 +107,7 @@ export class LLMGateway {
       throw new LLMError(
         `LLM Provider "${target}" is not registered or supported. Available: ${Array.from(this.providers.keys()).join(', ')}`,
         LLMErrorCode.UNSUPPORTED_PROVIDER,
-        target
+        target,
       );
     }
     return provider;
@@ -95,19 +122,37 @@ export class LLMGateway {
     if (lower.startsWith('claude')) return 'anthropic';
     if (lower.startsWith('gemini')) return 'gemini';
     if (lower.startsWith('gpt') || lower.startsWith('o1') || lower.startsWith('o3')) return 'openai';
+    if (lower.includes('llama') || lower.includes('mistral') || lower.includes('qwen')) {
+      if (this.providers.has('ollama')) return 'ollama';
+    }
     return this.defaultProvider;
+  }
+
+  public listProviders(): string[] {
+    return Array.from(this.providers.keys());
   }
 
   /**
    * Executes a chat completion with automatic retries, latency tracking, and token cost calculation.
+   * Set LLM_DEBUG=true to print request messages + response content to the process console.
    */
   public async executeChat(
     request: LLMRequest,
     runId = 'run_local',
-    providerName?: string
+    providerName?: string,
   ): Promise<ChatExecutionResult> {
     const targetProviderName = providerName || this.resolveProviderForModel(request.model);
     const provider = this.getProvider(targetProviderName);
+    const debug = LLMGateway.debugEnabled();
+
+    if (debug) {
+      console.log(
+        `[LLM_DEBUG] ▶ request run=${runId} provider=${targetProviderName} model=${request.model || 'default'}`,
+      );
+      console.log(
+        `[LLM_DEBUG] messages:\n${LLMGateway.truncateDebug(JSON.stringify(request.messages, null, 2))}`,
+      );
+    }
 
     const startTime = Date.now();
     let attempts = 0;
@@ -133,9 +178,27 @@ export class LLMGateway {
           estimatedCostUsd: costUsd,
         };
 
+        if (debug) {
+          console.log(
+            `[LLM_DEBUG] ◀ response run=${runId} model=${response.model} latency=${latencyMs}ms in=${response.inputTokens} out=${response.outputTokens}`,
+          );
+          console.log(`[LLM_DEBUG] content:\n${LLMGateway.truncateDebug(response.content || '')}`);
+          if (response.toolCalls?.length) {
+            console.log(
+              `[LLM_DEBUG] toolCalls:\n${LLMGateway.truncateDebug(JSON.stringify(response.toolCalls, null, 2))}`,
+            );
+          }
+        }
+
         return { response, metrics };
       } catch (err: any) {
         lastError = err;
+        if (debug) {
+          console.error(
+            `[LLM_DEBUG] ✖ attempt ${attempts}/${this.maxRetries} failed:`,
+            err?.message || err,
+          );
+        }
 
         // Only retry retryable errors (429, timeouts, 5xx)
         const isRetryable =
@@ -163,7 +226,11 @@ export class LLMGateway {
       latencyMs,
       status: 'failed',
     };
+    void failedMetrics;
 
-    throw lastError || new LLMError('Failed after maximum retry attempts', LLMErrorCode.PROVIDER_ERROR, targetProviderName);
+    throw (
+      lastError ||
+      new LLMError('Failed after maximum retry attempts', LLMErrorCode.PROVIDER_ERROR, targetProviderName)
+    );
   }
 }

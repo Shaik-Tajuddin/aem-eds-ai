@@ -59,14 +59,47 @@ export async function processBrowserTestJob(
       }
       auditSuccess = true;
     } catch (browserErr: any) {
-      // In offline/mock environments or non-resolving test URLs, fall back to mock verification
+      // Never invent decorated blocks or fake screenshots — fail with system evidence
+      const message = browserErr instanceof Error ? browserErr.message : String(browserErr);
       for (const blockName of data.blockNames || []) {
-        decoratedBlocks.push(blockName);
+        if (!undecoratedBlocks.includes(blockName)) undecoratedBlocks.push(blockName);
       }
-      for (const vp of data.viewports) {
-        screenshots[vp] = `/evidence/${data.runId}-${vp}.png`;
+      auditSuccess = false;
+      await job.updateProgress(100);
+      const durationMs = Date.now() - startTime;
+
+      if (db) {
+        try {
+          await db.insert(testRuns).values({
+            runId: data.runId,
+            type: 'BROWSER_AUTOMATION',
+            status: 'FAILED',
+            total: (data.blockNames || []).length || 1,
+            passed: 0,
+            failed: (data.blockNames || []).length || 1,
+            skipped: 0,
+            durationMs,
+            results: {
+              error: message,
+              summary: `Browser audit UNAVAILABLE/FAILED: ${message}`,
+            },
+          });
+        } catch (dbErr) {
+          console.warn('[BrowserWorker] DB testRun insert warning:', dbErr);
+        }
       }
-      auditSuccess = true;
+
+      return {
+        runId: data.runId,
+        success: false,
+        decoratedBlocks: [],
+        undecoratedBlocks,
+        consoleErrorsCount: consoleErrorsCount + 1,
+        a11yViolationsCount,
+        screenshots: {},
+        durationMs,
+        error: message,
+      };
     } finally {
       await controller.close().catch(() => {});
     }

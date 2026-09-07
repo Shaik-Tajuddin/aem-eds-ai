@@ -2,6 +2,104 @@
 // EDS (Edge Delivery Services) Types
 // ============================================================
 
+/** Engineering IR — Architecture → Coding contract (never Figma → JS directly) */
+export type EDSComponentType = 'block' | 'section' | 'utility';
+
+export interface FieldIR {
+  name: string;
+  label: string;
+  component: string;
+  required?: boolean;
+  multi?: boolean;
+  valueType?: string;
+}
+
+export interface OptionIR {
+  name: string;
+  values: string[];
+  defaultValue?: string;
+}
+
+export interface ResponsiveRuleIR {
+  breakpoint: string;
+  behavior: string;
+}
+
+export interface TestCaseIR {
+  name: string;
+  description: string;
+  selector?: string;
+  assertions: string[];
+}
+
+export interface VisualRequirementIR {
+  name: string;
+  viewport: 'desktop' | 'tablet' | 'mobile';
+  thresholdPercent?: number;
+}
+
+export interface EDSComponentIR {
+  name: string;
+  type: EDSComponentType;
+  authoring: {
+    editable: boolean;
+    fields: FieldIR[];
+    options: OptionIR[];
+  };
+  rendering: {
+    semanticHtml: string;
+    responsiveBehavior: ResponsiveRuleIR[];
+  };
+  implementation: {
+    css: string[];
+    javascript: string[];
+  };
+  dependencies: string[];
+  accessibility: {
+    requirements: string[];
+  };
+  testing: {
+    functional: TestCaseIR[];
+    visual: VisualRequirementIR[];
+  };
+}
+
+export interface EDSArchitectureIR {
+  id: string;
+  projectId?: string;
+  createdAt: string;
+  components: EDSComponentIR[];
+  reuseDecisions: Array<{
+    component: string;
+    decision: 'reuse' | 'option' | 'new' | 'utility';
+    rationale: string;
+  }>;
+  conventions: string[];
+}
+
+export type EvidenceStatus = 'PASS' | 'FAIL' | 'SKIPPED' | 'UNAVAILABLE';
+
+export interface SystemEvidence {
+  id: string;
+  kind:
+    | 'build'
+    | 'lint'
+    | 'browser'
+    | 'visual'
+    | 'accessibility'
+    | 'performance'
+    | 'quality-gate'
+    | 'github'
+    | 'other';
+  status: EvidenceStatus;
+  summary: string;
+  artifacts?: string[];
+  metrics?: Record<string, number | string | boolean>;
+  producedAt: string;
+  /** Distinguishes live tool output from static offline checks */
+  mode: 'live' | 'static' | 'unavailable';
+}
+
 export interface EDSBlock {
   name: string;
   htmlStructure: string;

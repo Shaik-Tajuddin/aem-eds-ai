@@ -170,41 +170,67 @@ export class BrowserController {
         };
       });
 
-      // 5. Accessibility Checks (Static DOM heuristic)
-      const a11yViolations: AxeViolation[] = await page.evaluate(() => {
-        const violations: AxeViolation[] = [];
-
-        // Missing alt text on images
-        const imgsWithoutAlt = document.querySelectorAll('img:not([alt])');
-        if (imgsWithoutAlt.length > 0) {
-          violations.push({
-            id: 'image-alt',
-            description: 'Images must have alternate text',
-            impact: 'critical',
-            nodes: imgsWithoutAlt.length,
-            helpUrl: 'https://dequeuniversity.com/rules/axe/4.8/image-alt',
+      // 5. Accessibility — prefer live axe-core; fall back to DOM heuristics
+      let a11yViolations: AxeViolation[] = [];
+      let a11yMode: 'axe' | 'heuristic' = 'heuristic';
+      try {
+        const { getAxeSource } = await import('@aeds/accessibility');
+        const axeSource = await getAxeSource();
+        if (axeSource && axeSource.length > 100) {
+          await page.addScriptTag({ content: axeSource });
+          const axeResults = await page.evaluate(async () => {
+            const axe = (window as unknown as { axe?: { run: (doc: Document, opts: object) => Promise<{ violations: any[] }> } }).axe;
+            if (!axe?.run) return null;
+            const results = await axe.run(document, {
+              resultTypes: ['violations'],
+            });
+            return (results.violations || []).map((v: any) => ({
+              id: String(v.id),
+              description: String(v.description || v.help || v.id),
+              impact: v.impact || 'moderate',
+              nodes: Array.isArray(v.nodes) ? v.nodes.length : 0,
+              helpUrl: v.helpUrl || undefined,
+            }));
           });
+          if (axeResults) {
+            a11yViolations = axeResults as AxeViolation[];
+            a11yMode = 'axe';
+          }
         }
+      } catch {
+        // fall through to heuristics
+      }
 
-        // Interactive buttons missing text or aria-label
-        const emptyButtons = Array.from(document.querySelectorAll('button, a')).filter((el) => {
-          const text = el.textContent?.trim();
-          const ariaLabel = el.getAttribute('aria-label');
-          return !text && !ariaLabel && !el.querySelector('svg, img');
+      if (a11yMode === 'heuristic') {
+        a11yViolations = await page.evaluate(() => {
+          const violations: AxeViolation[] = [];
+          const imgsWithoutAlt = document.querySelectorAll('img:not([alt])');
+          if (imgsWithoutAlt.length > 0) {
+            violations.push({
+              id: 'image-alt',
+              description: 'Images must have alternate text',
+              impact: 'critical',
+              nodes: imgsWithoutAlt.length,
+              helpUrl: 'https://dequeuniversity.com/rules/axe/4.8/image-alt',
+            });
+          }
+          const emptyButtons = Array.from(document.querySelectorAll('button, a')).filter((el) => {
+            const text = el.textContent?.trim();
+            const ariaLabel = el.getAttribute('aria-label');
+            return !text && !ariaLabel && !el.querySelector('svg, img');
+          });
+          if (emptyButtons.length > 0) {
+            violations.push({
+              id: 'button-name',
+              description: 'Buttons and links must have discernible text or aria-label',
+              impact: 'serious',
+              nodes: emptyButtons.length,
+              helpUrl: 'https://dequeuniversity.com/rules/axe/4.8/button-name',
+            });
+          }
+          return violations;
         });
-
-        if (emptyButtons.length > 0) {
-          violations.push({
-            id: 'button-name',
-            description: 'Buttons and links must have discernible text or aria-label',
-            impact: 'serious',
-            nodes: emptyButtons.length,
-            helpUrl: 'https://dequeuniversity.com/rules/axe/4.8/button-name',
-          });
-        }
-
-        return violations;
-      });
+      }
 
       // 6. Screenshot
       let screenshotBase64: string | undefined;
@@ -218,9 +244,17 @@ export class BrowserController {
         screenshotBase64 = buffer.toString('base64');
       }
 
-      // 7. Performance timing
+      // 7. Performance timing (real navigation timing — not fabricated scores)
       const perfTiming = await page.evaluate(() => {
-        const t = window.performance.timing;
+        const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+        if (nav) {
+          return {
+            fcp: Math.max(0, nav.responseEnd),
+            lcp: Math.max(0, nav.loadEventEnd),
+            ttfb: Math.max(0, nav.responseStart),
+          };
+        }
+        const t = (window.performance as any).timing;
         if (!t) return undefined;
         return {
           fcp: Math.max(0, t.responseEnd - t.navigationStart),
@@ -228,6 +262,10 @@ export class BrowserController {
           ttfb: Math.max(0, t.responseStart - t.requestStart),
         };
       });
+
+      const lcp = perfTiming?.lcp ?? loadTimeMs;
+      // Score derived only from measured load time — never a constant "pass" floor
+      const performanceScore = Math.max(0, Math.min(100, Math.round(100 - lcp / 50)));
 
       return {
         url,
@@ -241,8 +279,9 @@ export class BrowserController {
         screenshotBase64,
         screenshotPath: options?.screenshotPath,
         a11yViolations,
+        a11yMode,
         performanceMetrics: {
-          performanceScore: Math.min(100, Math.max(70, Math.round(100 - loadTimeMs / 50))),
+          performanceScore,
           fcp: perfTiming?.fcp,
           lcp: perfTiming?.lcp,
           ttfb: perfTiming?.ttfb,

@@ -171,10 +171,15 @@ npm run typecheck
 
 ## Documentation
 
-Full architectural specifications, implementation plans, and phase walkthroughs are located under [`docs/`](./docs/):
+Full architectural specifications and reference guides are under [`docs/`](./docs/):
 
-- [Master Platform Walkthrough](./docs/walkthrough.md)
-- [Master Specification vs. Implementation Gap Analysis](./docs/master-vision-gap-analysis-implementation-plan.md)
+- [Documentation index](./docs/README.md) — start here
+- [Architecture](./docs/architecture.md)
+- [Local development](./docs/local-development.md)
+- [LLM providers](./docs/llm-providers.md)
+- [Agent system](./docs/agent-system.md)
+- [MVP Gap Plan](./docs/mvp-gap-plan.md)
+- [Troubleshooting](./docs/troubleshooting.md)
 - [Phase 0 & 1 — Foundation & Web Dashboard](./docs/phase-0-1-foundation-and-ui.md)
 - [Phase 2 — GitHub Integration](./docs/phase-2-github-integration.md)
 - [Phase 3 — LLM Gateway](./docs/phase-3-llm-gateway.md)

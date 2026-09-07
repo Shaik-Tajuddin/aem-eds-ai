@@ -4,6 +4,23 @@ import type { LLMProvider } from '../enums/index.js';
 // LLM Gateway Types
 // ============================================================
 
+export type LLMCapability =
+  | 'toolCalling'
+  | 'structuredOutput'
+  | 'vision'
+  | 'longContext'
+  | 'streaming'
+  | 'jsonMode';
+
+export interface ModelCapabilities {
+  toolCalling: boolean;
+  structuredOutput: boolean;
+  vision: boolean;
+  longContext: boolean;
+  streaming: boolean;
+  jsonMode: boolean;
+}
+
 export interface LLMCallRecord {
   id: string;
   runId: string;
@@ -28,6 +45,11 @@ export interface LLMProviderConfig {
   temperature?: number;
   timeoutMs?: number;
   maxRetries?: number;
+  /** Azure OpenAI deployment / api-version */
+  azureDeployment?: string;
+  azureApiVersion?: string;
+  organization?: string;
+  project?: string;
 }
 
 export interface LLMMessage {
@@ -53,6 +75,22 @@ export interface LLMResponse {
   outputTokens: number;
   model: string;
   finishReason: string;
+}
+
+export type LLMEvent =
+  | { type: 'token'; content: string }
+  | { type: 'tool_call'; toolCall: LLMToolCall }
+  | { type: 'done'; response: LLMResponse }
+  | { type: 'error'; message: string };
+
+export interface StructuredLLMRequest<T = unknown> {
+  messages: LLMMessage[];
+  model?: string;
+  maxTokens?: number;
+  temperature?: number;
+  /** JSON Schema or Zod-like description for documentation; runtime parsers validate */
+  schemaDescription?: string;
+  parse: (raw: string) => T;
 }
 
 export interface LLMToolDefinition {

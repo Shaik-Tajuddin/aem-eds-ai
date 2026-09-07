@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { NewRunModal } from './NewRunModal';
+import { isTerminalRunStatus, POLL_ACTIVE_MS, POLL_IDLE_MS } from '../../lib/utils';
 
 interface RunItem {
   id: string;
@@ -141,22 +142,40 @@ export function RunsManager() {
   const [selectedRun, setSelectedRun] = useState<RunItem | null>(null);
   const [isNewRunModalOpen, setIsNewRunModalOpen] = useState(false);
   const [rerunningId, setRerunningId] = useState<string | null>(null);
+  const delayRef = useRef(POLL_ACTIVE_MS);
+
+  const loadRuns = useCallback(async (): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/backend/runs');
+      const data = await res.json();
+      if (data && Array.isArray(data.runs)) {
+        setRuns(data.runs.map(mapDbRunToRunItem));
+        return data.runs.some((r: any) => !isTerminalRunStatus(r.status));
+      }
+    } catch (err) {
+      console.warn('Failed to load runs from backend:', err);
+    }
+    return false;
+  }, []);
 
   useEffect(() => {
-    const load = () => {
-      fetch('/api/backend/runs')
-        .then((res) => res.json())
-        .then((data) => {
-          if (data && Array.isArray(data.runs)) {
-            setRuns(data.runs.map(mapDbRunToRunItem));
-          }
-        })
-        .catch((err) => console.warn('Failed to load runs from backend:', err));
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const tick = async () => {
+      const hasActive = await loadRuns();
+      delayRef.current = hasActive ? POLL_ACTIVE_MS : POLL_IDLE_MS;
+      if (!cancelled) {
+        timer = setTimeout(tick, delayRef.current);
+      }
     };
-    load();
-    const interval = setInterval(load, 2500);
-    return () => clearInterval(interval);
-  }, []);
+
+    void tick();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [loadRuns]);
 
   const filteredRuns = runs.filter((r) => {
     if (statusFilter === 'RUNNING') return r.status === 'ANALYZING' || r.status === 'IMPLEMENTING' || r.status === 'QUALITY_GATE';
@@ -239,6 +258,14 @@ export function RunsManager() {
 
         {/* Action Buttons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button
+            type="button"
+            onClick={() => void loadRuns()}
+            className="btn btn-secondary btn-sm"
+            title="Refresh runs list"
+          >
+            Refresh
+          </button>
           {/* Compare Runs Button */}
           <Link
             href={'/dashboard/runs/compare' as any}

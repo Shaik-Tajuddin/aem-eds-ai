@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { TopBar } from '../../components/layout/TopBar';
 import { KPIStrip } from '../../components/dashboard/KPIStrip';
@@ -9,64 +9,75 @@ import { ActiveRunsSection } from '../../components/dashboard/ActiveRunsSection'
 import { ProjectsGrid } from '../../components/dashboard/ProjectsGrid';
 import { ActivityTimeline } from '../../components/dashboard/ActivityTimeline';
 import { useProjects } from '../../lib/project-store';
+import { isTerminalRunStatus, POLL_ACTIVE_MS, POLL_IDLE_MS } from '../../lib/utils';
 
 export default function OverviewPage() {
   const { projects } = useProjects();
   const [liveRuns, setLiveRuns] = useState<any[]>([]);
+  const delayRef = useRef(POLL_ACTIVE_MS);
+
+  const loadRuns = useCallback(async (): Promise<boolean> => {
+    try {
+      const r = await fetch('/api/backend/runs');
+      const data = await r.json();
+      if (data && Array.isArray(data.runs)) {
+        const mapped = data.runs.map((run: any) => {
+          const progressRaw = typeof run.progress === 'number' ? run.progress : 0;
+          const progress =
+            progressRaw <= 1 && progressRaw > 0
+              ? Math.round(progressRaw * 100)
+              : Math.round(progressRaw);
+          const isActive = !isTerminalRunStatus(run.status);
+          return {
+            id: run.id,
+            projectId: run.projectId,
+            projectName: run.projectName || 'EDS Project',
+            status: isActive
+              ? 'RUNNING'
+              : run.status === 'FAILED' || run.status === 'CANCELLED'
+                ? 'FAILED'
+                : 'PASSED',
+            source: run.source || 'EXISTING_WEBSITE',
+            currentStage: run.currentStage || run.status || '—',
+            stageIndex: Math.max(1, Math.round((progress / 100) * 13)),
+            totalStages: 13,
+            progress,
+            iteration: run.iteration || 0,
+            maxIterations: run.maxIterations || 5,
+            durationMs: run.durationMs || 0,
+            branch: run.branch || 'main',
+            repo: '—',
+            prUrl: undefined,
+            startedAt: run.startedAt || run.createdAt || new Date().toISOString(),
+          };
+        });
+        setLiveRuns(mapped);
+        return mapped.some((run: any) => run.status === 'RUNNING');
+      }
+    } catch (e) {
+      console.warn('Failed to load runs:', e);
+    }
+    return false;
+  }, []);
 
   useEffect(() => {
-    const TERMINAL = new Set([
-      'WAITING_APPROVAL',
-      'DEPLOYED',
-      'FAILED',
-      'CANCELLED',
-      'LIMIT_REACHED',
-      'PR_CREATED',
-      'COMPLETED',
-    ]);
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
 
-    const load = () => {
-      fetch('/api/backend/runs')
-        .then((r) => r.json())
-        .then((data) => {
-          if (data && Array.isArray(data.runs)) {
-            setLiveRuns(
-              data.runs.map((r: any) => {
-                const progressRaw = typeof r.progress === 'number' ? r.progress : 0;
-                const progress =
-                  progressRaw <= 1 && progressRaw > 0
-                    ? Math.round(progressRaw * 100)
-                    : Math.round(progressRaw);
-                const isActive = !TERMINAL.has(r.status);
-                return {
-                  id: r.id,
-                  projectId: r.projectId,
-                  projectName: r.projectName || 'EDS Project',
-                  status: isActive ? 'RUNNING' : r.status === 'FAILED' || r.status === 'CANCELLED' ? 'FAILED' : 'PASSED',
-                  source: r.source || 'EXISTING_WEBSITE',
-                  currentStage: r.currentStage || r.status || '—',
-                  stageIndex: Math.max(1, Math.round((progress / 100) * 13)),
-                  totalStages: 13,
-                  progress,
-                  iteration: r.iteration || 0,
-                  maxIterations: r.maxIterations || 5,
-                  durationMs: r.durationMs || 0,
-                  branch: r.branch || 'main',
-                  repo: '—',
-                  prUrl: undefined,
-                  startedAt: r.startedAt || r.createdAt || new Date().toISOString(),
-                };
-              })
-            );
-          }
-        })
-        .catch((e) => console.warn('Failed to load runs:', e));
+    const tick = async () => {
+      const hasActive = await loadRuns();
+      delayRef.current = hasActive ? POLL_ACTIVE_MS : POLL_IDLE_MS;
+      if (!cancelled) {
+        timer = setTimeout(tick, delayRef.current);
+      }
     };
 
-    load();
-    const interval = setInterval(load, 2500);
-    return () => clearInterval(interval);
-  }, []);
+    void tick();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [loadRuns]);
 
   const activeCount = liveRuns.filter((r) => r.status === 'RUNNING').length;
   const kpiItems = [
@@ -80,7 +91,7 @@ export default function OverviewPage() {
 
   return (
     <>
-      <TopBar title="Overview" subtitle="Engineering Command Center" />
+      <TopBar title="Overview" subtitle="Engineering Command Center" onRefresh={() => void loadRuns()} />
 
       <div
         style={{

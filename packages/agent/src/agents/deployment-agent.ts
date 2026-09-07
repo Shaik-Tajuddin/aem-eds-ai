@@ -89,10 +89,10 @@ export class DeploymentAgent extends BaseAgent {
           'error',
         );
         return {
-          success: true,
+          success: false,
           decision,
           filesGenerated: fileList,
-          error: prep.error,
+          error: prep.error || 'Pre-push build/lint checks failed',
         };
       }
 

@@ -1,9 +1,9 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { getDatabase } from '@aeds/database';
-import { agentRuns, projects, agentEvents, repositories, pullRequests } from '@aeds/database';
+import { agentRuns, projects, agentEvents, repositories, pullRequests, projectConfigs, environments } from '@aeds/database';
 import { eq, desc, and } from '@aeds/database';
-import { AgentOrchestrator } from '@aeds/agent';
+import { AgentOrchestrator, resolveReferenceSourceUrl } from '@aeds/agent';
 import { enqueueAgentRun, getAllQueueMetrics } from '@aeds/queue';
 export const runsPlugin: FastifyPluginAsync = async (server) => {
   const db = getDatabase();
@@ -129,6 +129,26 @@ export const runsPlugin: FastifyPluginAsync = async (server) => {
           .where(eq(repositories.projectId, body.projectId))
           .limit(1);
 
+        const [configRow] = await db
+          .select()
+          .from(projectConfigs)
+          .where(eq(projectConfigs.projectId, body.projectId))
+          .limit(1);
+
+        const [envRow] = await db
+          .select()
+          .from(environments)
+          .where(eq(environments.projectId, body.projectId))
+          .limit(1);
+
+        const resolvedRef = resolveReferenceSourceUrl({
+          requestedUrl: body.sourceUrl,
+          projectSourceUrl: configRow?.sourceUrl,
+          authorUrl: envRow?.authorUrl,
+          authoringPath: envRow?.authoringPath,
+        });
+        const referenceSourceUrl = resolvedRef?.url || body.sourceUrl;
+
         const fullName = repoRow?.fullName || 'adobe/aem-boilerplate';
         const [repoOwner, ...repoNameParts] = fullName.split('/');
         const repoName = repoNameParts.join('/') || 'aem-boilerplate';
@@ -141,7 +161,7 @@ export const runsPlugin: FastifyPluginAsync = async (server) => {
             projectId: body.projectId,
             status: 'RECEIVED',
             source: body.source,
-            sourceUrl: body.sourceUrl,
+            sourceUrl: referenceSourceUrl,
             branch,
             progress: 0,
             iteration: 0,
@@ -154,6 +174,24 @@ export const runsPlugin: FastifyPluginAsync = async (server) => {
 
         if (!run) {
           return reply.code(500).send({ error: 'Failed to create run' });
+        }
+
+        if (resolvedRef && body.sourceUrl && resolvedRef.url !== body.sourceUrl) {
+          await db.insert(agentEvents).values({
+            runId: run.id,
+            projectId: body.projectId,
+            type: 'agent.step.started',
+            actor: 'system',
+            step: 'RECEIVED',
+            status: 'RECEIVED',
+            data: {
+              phase: 'RECEIVED',
+              status: 'RECEIVED',
+              message: `Reference URL corrected: ${resolvedRef.reason}. Using ${resolvedRef.url} (not authoring URL ${body.sourceUrl}).`,
+              requestedSourceUrl: body.sourceUrl,
+              referenceSourceUrl: resolvedRef.url,
+            },
+          }).catch(() => null);
         }
 
         const startTime = Date.now();
@@ -213,7 +251,8 @@ export const runsPlugin: FastifyPluginAsync = async (server) => {
               repoName,
               baseBranch: branch,
               sourceType: body.source,
-              sourceUrl: body.sourceUrl,
+              sourceUrl: referenceSourceUrl,
+              authorUrl: envRow?.authorUrl || process.env.AEM_AUTHOR_URL || undefined,
               maxFixIterations: body.maxIterations,
             })
             .then(async (result) => {
@@ -281,7 +320,7 @@ export const runsPlugin: FastifyPluginAsync = async (server) => {
               repoName,
               baseBranch: branch,
               sourceType: body.source,
-              sourceUrl: body.sourceUrl,
+              sourceUrl: referenceSourceUrl,
               iteration: 0,
               maxIterations: body.maxIterations,
             });
@@ -447,8 +486,100 @@ export const runsPlugin: FastifyPluginAsync = async (server) => {
     { schema: { tags: ['runs'], summary: 'Pause run', security: [{ bearerAuth: [] }] } },
     async (request, reply) => {
       const { id } = request.params;
-      await db.update(agentRuns).set({ status: 'PAUSED' }).where(eq(agentRuns.id, id));
-      return reply.send({ message: 'Run paused' });
+      const [run] = await db.select().from(agentRuns).where(eq(agentRuns.id, id)).limit(1);
+      if (!run) return reply.status(404).send({ error: 'Run not found' });
+
+      const snapshot = {
+        ...(typeof run.stateSnapshot === 'object' && run.stateSnapshot ? run.stateSnapshot : {}),
+        pausedAt: new Date().toISOString(),
+        statusBeforePause: run.status,
+      };
+      await db
+        .update(agentRuns)
+        .set({ status: 'PAUSED', stateSnapshot: snapshot })
+        .where(eq(agentRuns.id, id));
+      return reply.send({ message: 'Run paused', stateSnapshot: snapshot });
+    }
+  );
+
+  // POST /api/runs/:id/resume — restore from state_snapshot and re-enqueue / re-run
+  server.post<{ Params: { id: string } }>(
+    '/:id/resume',
+    { schema: { tags: ['runs'], summary: 'Resume a paused or failed run from checkpoint', security: [{ bearerAuth: [] }] } },
+    async (request, reply) => {
+      const { id } = request.params;
+      const [run] = await db.select().from(agentRuns).where(eq(agentRuns.id, id)).limit(1);
+      if (!run) return reply.status(404).send({ error: 'Run not found' });
+
+      const resumable = ['PAUSED', 'FAILED', 'LIMIT_REACHED', 'WAITING_APPROVAL'].includes(String(run.status));
+      if (!resumable) {
+        return reply.status(409).send({
+          error: `Run status ${run.status} is not resumable`,
+          hint: 'Only PAUSED, FAILED, LIMIT_REACHED, or WAITING_APPROVAL runs can be resumed',
+        });
+      }
+
+      const snapshot =
+        typeof run.stateSnapshot === 'object' && run.stateSnapshot
+          ? (run.stateSnapshot as Record<string, unknown>)
+          : {};
+      const resumeStatus =
+        typeof snapshot.statusBeforePause === 'string'
+          ? snapshot.statusBeforePause
+          : 'ANALYZING';
+
+      const [repo] = await db
+        .select()
+        .from(repositories)
+        .where(eq(repositories.projectId, run.projectId))
+        .limit(1);
+
+      const fullName = repo?.fullName || 'adobe/aem-boilerplate';
+      const [repoOwner, ...rest] = fullName.split('/');
+      const repoName = rest.join('/') || 'aem-boilerplate';
+
+      const nextSnapshot = {
+        ...snapshot,
+        resumedAt: new Date().toISOString(),
+        resumeCount: Number(snapshot.resumeCount || 0) + 1,
+      };
+
+      await db
+        .update(agentRuns)
+        .set({
+          status: resumeStatus as any,
+          stateSnapshot: nextSnapshot,
+          completedAt: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(agentRuns.id, id));
+
+      let enqueueError: string | undefined;
+      try {
+        await enqueueAgentRun({
+          runId: id,
+          projectId: run.projectId,
+          repoOwner: repoOwner || 'adobe',
+          repoName,
+          baseBranch: repo?.defaultBranch || 'main',
+          sourceType: (run.source as any) || 'NATURAL_LANGUAGE',
+          sourceUrl: run.sourceUrl || undefined,
+          iteration: Number(run.iteration || 0),
+          maxIterations: Number(run.maxIterations || 5),
+          metadata: { resumeFrom: resumeStatus, ...nextSnapshot },
+        });
+      } catch (err: any) {
+        enqueueError = err?.message || String(err);
+      }
+
+      return reply.send({
+        message: enqueueError
+          ? 'Run checkpoint restored; queue enqueue failed (worker may be offline)'
+          : 'Run resumed from checkpoint and re-enqueued',
+        status: resumeStatus,
+        stateSnapshot: nextSnapshot,
+        enqueueError,
+      });
     }
   );
 

@@ -55,12 +55,37 @@ This document contains the engineering blueprint and phased execution roadmap fo
 - Bounding box clustering (`BoundingBox` coordinates) providing spatial defect localization.
 - Differential heatmap overlay generation.
 
-### Phase 8 — AEM Cloud & Universal Editor Adapter 🚀 (Current)
+### Phase 8 — AEM Cloud & Universal Editor Adapter ✅ (partial)
 - `@aeds/aem`: Authenticated AEM Cloud Client (preview/publish dispatch, Content Fragments, JCR query).
 - Universal Editor Model Generator (`_component-definition.json`, `_component-models.json`, `_component-filters.json`).
 - DOM Instrumentation Validator (`data-aue-*` compliance).
-- Authoring Cycle Tester (Add → Edit → Save → Reopen → Rendered DOM check).
+- Authoring Cycle Tester (simulation; live UE browser loop still feature-flagged).
 - Universal Editor Dashboard (`/dashboard/ue`).
+
+### Phase 8.5 — MVP Hardening (Evidence Loop) ✅
+- Honest architecture docs: `docs/architecture.md`, `docs/mvp-gap-plan.md`.
+- Full `LLMProviderContract`: `chat` / `stream` / `generateStructured` / `supports` + Azure / Ollama / openai-compatible.
+- `EDSComponentIR` + Zod schemas (`@aeds/schemas`).
+- Versioned skills (`@aeds/agent-skills`).
+- Evidence-backed Build / Visual / A11y / Performance / Quality Gate agents (no fake PASS).
+- Browser worker fails loudly (no invented decorated blocks).
+- `POST /api/runs/:id/resume` checkpoint restore.
+- Packages: `@aeds/accessibility`, `@aeds/performance`.
+
+### Phase 8.6 — Live QA / Visual Worker / Cloud Manager / Migrations ✅
+- Live Playwright helper (`runLiveBrowserAudit`) wired into QA agent.
+- axe-core injection in `BrowserController` (heuristic fallback, mode labeled).
+- VisualValidationAgent uses `@aeds/visual` pixelmatch when baseline + screenshot exist.
+- `workers/visual-worker` for `visual-tests` queue.
+- `CloudManagerClient` adapter behind `ENABLE_CLOUD_MANAGER`.
+- Drizzle migration `0000_init_mvp.sql` (+ mirrored under `database/migrations/`).
+
+### Phase 8.7 — Build/Test Workers, Lighthouse, Auth, Reference Docs 🚀 (Current)
+- `workers/build-worker` + `workers/test-worker` with allowlisted command runner.
+- Queues: `build-jobs`, `test-jobs`.
+- `runLighthouseAudit` in `@aeds/performance` (feature-flagged; unavailable without packages).
+- API auth: production requires `API_SECRET_KEY` Bearer or HS256 JWT (`NEXTAUTH_SECRET`).
+- Full §64 documentation set under `docs/` (see `docs/README.md`).
 
 ### Phase 9 — Figma REST Client & Design IR Converter 📋
 - `@aeds/figma`: Figma REST API integration.
@@ -71,3 +96,4 @@ This document contains the engineering blueprint and phased execution roadmap fo
 
 ### Phase 11 — Distributed BullMQ Queue Workers 📋
 - Out-of-process job execution workers in `workers/` for long-running agent orchestration and browser audits.
+- Still needed: dedicated `build-worker`, `test-worker`, `visual-worker`.

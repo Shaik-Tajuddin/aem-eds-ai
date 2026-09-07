@@ -66,5 +66,7 @@ export interface PageAuditResult {
   screenshotBase64?: string;
   screenshotPath?: string;
   a11yViolations: AxeViolation[];
+  /** How a11y was produced — never claim axe when heuristics were used */
+  a11yMode?: 'axe' | 'heuristic';
   performanceMetrics?: Partial<PerformanceRun>;
 }

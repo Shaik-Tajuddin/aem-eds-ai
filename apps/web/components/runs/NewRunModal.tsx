@@ -79,7 +79,6 @@ export function NewRunModal({
       setSourceUrl(
         initialSourceUrl ||
           selected.sourceUrl ||
-          selected.aemEnvironment ||
           '',
       );
       if (!taskTitle) {
@@ -253,7 +252,7 @@ export function NewRunModal({
                 if (p) {
                   setBranch(p.branch || 'main');
                   setSourceType(mapProjectSourceToUi(p.sourceType));
-                  setSourceUrl(p.sourceUrl || p.aemEnvironment || '');
+                  setSourceUrl(p.sourceUrl || '');
                 }
               }}
               disabled={projects.length === 0}
@@ -331,13 +330,13 @@ export function NewRunModal({
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Source Reference URL
+                Source / Reference URL
               </label>
               <input
                 type="url"
                 value={sourceUrl}
                 onChange={(e) => setSourceUrl(e.target.value)}
-                placeholder="https://..."
+                placeholder="https://publish-…adobeaemcloud.com/…/page.plain.html"
                 required={sourceType !== 'PROMPT'}
                 style={{
                   background: 'var(--bg-subtle)',
@@ -349,6 +348,9 @@ export function NewRunModal({
                   outline: 'none',
                 }}
               />
+              <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                Page to copy FROM (publish / live). Do not use the AEM author destination URL here.
+              </span>
             </div>
           </div>
 

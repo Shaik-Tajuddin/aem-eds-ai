@@ -1,17 +1,20 @@
 'use client';
 
-import { Plus, RefreshCw, Bell } from 'lucide-react';
+import { Plus, Bell } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
+import { registerPageRefresh } from './FloatingRefreshButton';
 
 interface TopBarProps {
   title: string;
   subtitle?: string;
   actions?: React.ReactNode;
   showNewProject?: boolean;
+  /** Soft refresh callback — avoids full page reload when provided */
+  onRefresh?: () => void;
 }
 
-export function TopBar({ title, subtitle, actions, showNewProject }: TopBarProps) {
+export function TopBar({ title, subtitle, actions, showNewProject, onRefresh }: TopBarProps) {
   const [now, setNow] = useState<string>('');
   // Default showNewProject to false if custom actions are provided, or true if actions is not provided, unless explicitly specified
   const shouldShowNewProject = showNewProject !== undefined ? showNewProject : !actions;
@@ -24,12 +27,17 @@ export function TopBar({ title, subtitle, actions, showNewProject }: TopBarProps
           minute: '2-digit',
           second: '2-digit',
           hour12: false,
-        })
+        }),
       );
     fmt();
     const id = setInterval(fmt, 1000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    registerPageRefresh(onRefresh ?? null);
+    return () => registerPageRefresh(null);
+  }, [onRefresh]);
 
   return (
     <header
@@ -43,8 +51,9 @@ export function TopBar({ title, subtitle, actions, showNewProject }: TopBarProps
         background: 'var(--bg-surface)',
         position: 'sticky',
         top: 0,
-        zIndex: 10,
+        zIndex: 100,
         gap: '16px',
+        flexShrink: 0,
       }}
     >
       {/* Left: title */}
@@ -72,7 +81,7 @@ export function TopBar({ title, subtitle, actions, showNewProject }: TopBarProps
         )}
       </div>
 
-      {/* Right: timestamp + actions */}
+      {/* Right: timestamp + actions (refresh lives in FloatingRefreshButton above Next.js indicator) */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         {now && (
           <span
@@ -86,15 +95,6 @@ export function TopBar({ title, subtitle, actions, showNewProject }: TopBarProps
             {now}
           </span>
         )}
-
-        <button
-          className="btn btn-ghost btn-sm"
-          title="Refresh"
-          aria-label="Refresh data"
-          onClick={() => window.location.reload()}
-        >
-          <RefreshCw size={13} />
-        </button>
 
         <button
           className="btn btn-ghost btn-sm"

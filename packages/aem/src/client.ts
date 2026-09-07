@@ -9,6 +9,7 @@ import type {
   PublishResult,
   ContentFragmentData,
 } from './types.js';
+import { resolveAemAccessToken } from './ims-auth.js';
 
 export class AemCloudClient {
   private readonly config: AemClientConfig;
@@ -34,15 +35,23 @@ export class AemCloudClient {
     }
 
     if (this.config.imsConfig) {
-      const { clientId, clientSecret, technicalAccountId } = this.config.imsConfig;
-      if (!clientId || !clientSecret || !technicalAccountId) {
+      const { clientId, clientSecret, technicalAccountId, orgId, privateKey } = this.config.imsConfig;
+      if (!clientId || !clientSecret || !technicalAccountId || !orgId || !privateKey) {
         throw new AemError(
-          'Incomplete AEM IMS credentials provided. Valid clientId, clientSecret, and technicalAccountId are required.',
+          'Incomplete AEM IMS credentials provided. Valid clientId, clientSecret, technicalAccountId, orgId, and privateKey are required.',
           AemErrorCode.AUTHENTICATION_REQUIRED
         );
       }
-      // Exchange IMS credentials for access token
-      return `Bearer mock-or-cached-ims-token`;
+      const { exchangeImsJwt } = await import('./ims-auth.js');
+      const token = await exchangeImsJwt(this.config.imsConfig);
+      this.token = token.accessToken;
+      return `Bearer ${this.token}`;
+    }
+
+    const fromEnv = await resolveAemAccessToken();
+    if (fromEnv?.accessToken) {
+      this.token = fromEnv.accessToken;
+      return `Bearer ${this.token}`;
     }
 
     throw new AemError(

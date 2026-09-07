@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@aeds/shared": "*",
+    "@aeds/accessibility": "*",
     "@playwright/test": "^1.53.0",
     "playwright": "^1.53.0"
   },

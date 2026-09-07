@@ -66,3 +66,26 @@ export function round(n: number, decimals = 1): number {
 export function clamp(n: number, min: number, max: number): number {
   return Math.min(Math.max(n, min), max);
 }
+
+/** Run statuses that no longer need fast live polling */
+export const TERMINAL_RUN_STATUSES = new Set([
+  'WAITING_APPROVAL',
+  'DEPLOYED',
+  'FAILED',
+  'CANCELLED',
+  'LIMIT_REACHED',
+  'PR_CREATED',
+  'COMPLETED',
+  'NOT_FOUND',
+  'ERROR',
+]);
+
+export function isTerminalRunStatus(status?: string | null): boolean {
+  if (!status) return false;
+  return TERMINAL_RUN_STATUSES.has(status);
+}
+
+/** Poll while a pipeline is actively advancing */
+export const POLL_ACTIVE_MS = 2500;
+/** Slow background refresh when nothing is running */
+export const POLL_IDLE_MS = 30000;

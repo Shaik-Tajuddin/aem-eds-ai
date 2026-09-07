@@ -1,4 +1,3 @@
-import { Queue, JobsOptions, Job } from 'bullmq';
 import {
   QUEUE_NAMES,
   QueueName,
@@ -8,9 +7,14 @@ import {
   BrowserTestJobSchema,
   VisualTestJobData,
   VisualTestJobSchema,
+  BuildJobData,
+  BuildJobSchema,
+  TestJobData,
+  TestJobSchema,
   QueueMetrics,
 } from './types';
 import { getRedisConnectionConfig } from './connection';
+import { Queue, JobsOptions, Job } from 'bullmq';
 
 const queues = new Map<string, Queue>();
 
@@ -95,6 +99,38 @@ export async function enqueueVisualTest(
 }
 
 /**
+ * Enqueues EDS project build/lint commands to the `build-jobs` queue.
+ */
+export async function enqueueBuildJob(
+  data: BuildJobData,
+  options?: JobsOptions,
+): Promise<Job<BuildJobData>> {
+  const validated = BuildJobSchema.parse(data);
+  const queue = getQueue<BuildJobData>(QUEUE_NAMES.BUILD_JOBS);
+  return queue.add(`build-${validated.runId}`, validated, {
+    jobId: `build-${validated.runId}`,
+    priority: 2,
+    ...options,
+  });
+}
+
+/**
+ * Enqueues project test commands to the `test-jobs` queue.
+ */
+export async function enqueueTestJob(
+  data: TestJobData,
+  options?: JobsOptions,
+): Promise<Job<TestJobData>> {
+  const validated = TestJobSchema.parse(data);
+  const queue = getQueue<TestJobData>(QUEUE_NAMES.TEST_JOBS);
+  return queue.add(`test-${validated.runId}`, validated, {
+    jobId: `test-${validated.runId}`,
+    priority: 2,
+    ...options,
+  });
+}
+
+/**
  * Retrieves real-time health and count metrics for a queue.
  */
 export async function getQueueMetrics(name: QueueName): Promise<QueueMetrics> {
@@ -141,6 +177,8 @@ export async function getAllQueueMetrics(): Promise<QueueMetrics[]> {
     QUEUE_NAMES.AGENT_RUNS,
     QUEUE_NAMES.BROWSER_TESTS,
     QUEUE_NAMES.VISUAL_TESTS,
+    QUEUE_NAMES.BUILD_JOBS,
+    QUEUE_NAMES.TEST_JOBS,
   ];
 
   return Promise.all(names.map((name) => getQueueMetrics(name)));

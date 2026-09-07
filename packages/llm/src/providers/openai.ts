@@ -8,16 +8,17 @@ import { BaseLLMProvider, type ProviderChatOptions } from './base.js';
 import { LLMError, LLMErrorCode } from '../errors.js';
 
 export class OpenAIProvider extends BaseLLMProvider {
-  public readonly name = 'openai';
+  public readonly name: string;
   private apiKey?: string;
 
   constructor(config: LLMProviderConfig, apiKey?: string) {
     super(config);
-    this.apiKey = apiKey || process.env.OPENAI_API_KEY;
+    this.name = String(config.provider || 'openai').toLowerCase().replace(/_/g, '-');
+    this.apiKey = apiKey || process.env.LLM_API_KEY || process.env.OPENAI_API_KEY;
   }
 
   public isConfigured(): boolean {
-    // If custom apiUrl like Ollama or local endpoint is provided, apiKey may not be required
+    // Local OpenAI-compatible servers may omit auth
     if (this.config.apiUrl && (this.config.apiUrl.includes('localhost') || this.config.apiUrl.includes('127.0.0.1'))) {
       return true;
     }
@@ -27,13 +28,16 @@ export class OpenAIProvider extends BaseLLMProvider {
   public async chat(request: LLMRequest, options?: ProviderChatOptions): Promise<LLMResponse> {
     if (!this.isConfigured()) {
       throw new LLMError(
-        'OpenAI API key is missing. Please configure OPENAI_API_KEY or supply credentials.',
+        'OpenAI-compatible API key is missing. Configure LLM_API_KEY / OPENAI_API_KEY.',
         LLMErrorCode.MISSING_API_KEY,
         this.name
       );
     }
 
-    const baseUrl = this.config.apiUrl || 'https://api.openai.com/v1';
+    const baseUrl =
+      this.config.apiUrl ||
+      process.env.LLM_API_URL ||
+      'https://api.openai.com/v1';
     const model = request.model || this.config.model || 'gpt-4o';
     const timeout = options?.timeoutMs || this.config.timeoutMs || 60000;
 

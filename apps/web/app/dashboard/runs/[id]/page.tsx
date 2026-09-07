@@ -30,6 +30,7 @@ import {
   Eye,
   Sliders,
 } from 'lucide-react';
+import { isTerminalRunStatus, POLL_ACTIVE_MS } from '../../../../lib/utils';
 
 const PIPELINE_STAGE_DEFS: Array<{ name: string; statusKey: string }> = [
   { name: 'Analyze', statusKey: 'ANALYZING' },
@@ -58,11 +59,28 @@ type ConsoleLine = {
 };
 
 function inferLogLevel(text: string, type: string): ConsoleLine['level'] {
+  const typeNorm = type.toLowerCase();
+  // LLM payloads often contain the words "error"/"failed" inside code — don't paint them red
+  if (typeNorm.includes('llm.request') || typeNorm.includes('llm.completed')) {
+    return 'info';
+  }
+  if (typeNorm.includes('llm.failed')) {
+    return 'warn';
+  }
+  if (text.startsWith('▶ LLM REQUEST') || text.startsWith('◀ LLM RESPONSE') || text.startsWith('──── ASSISTANT')) {
+    return 'info';
+  }
   const lower = text.toLowerCase();
-  if (type.includes('failed') || type.includes('FAILED') || lower.includes(' failed') || lower.includes('error')) {
+  if (type.includes('failed') || type.includes('FAILED') || lower.startsWith('✖')) {
     return 'error';
   }
-  if (lower.includes('skip') || lower.includes('warn') || lower.includes('not ') || lower.includes('no github') || lower.includes('mock')) {
+  if (
+    lower.includes('skip') ||
+    lower.includes('warn') ||
+    lower.includes('invalid json') ||
+    lower.includes('retrying') ||
+    lower.includes('never returned valid json')
+  ) {
     return 'warn';
   }
   if (type.includes('COMPLETED') || type.includes('STARTED') || type.includes('completed') || type.includes('started')) {
@@ -115,7 +133,53 @@ function buildStageConsole(events: any[]): {
         : '';
 
     const chunks: string[] = [];
-    if (type.includes('STARTED') || type.includes('started')) {
+    const typeNorm = type.toLowerCase();
+
+    if (typeNorm === 'llm.request' || typeNorm.includes('llm.request')) {
+      const attempt =
+        typeof data.attempt === 'number' && typeof data.maxAttempts === 'number'
+          ? ` · attempt ${data.attempt}/${data.maxAttempts}`
+          : '';
+      chunks.push(`▶ LLM REQUEST${attempt}${message ? ` — ${message}` : ''}`);
+      const model = data.model ? String(data.model) : '';
+      if (model) chunks.push(`model: ${model}`);
+      const messages = Array.isArray(data.messages) ? data.messages : [];
+      for (const m of messages) {
+        const role = String((m as any)?.role || 'message');
+        const content = String((m as any)?.content || '');
+        chunks.push(`──── ${role.toUpperCase()} ────\n${content}`);
+      }
+      if (messages.length === 0 && data.prompt) {
+        chunks.push(String(data.prompt));
+      }
+    } else if (typeNorm === 'llm.completed' || typeNorm.includes('llm.completed')) {
+      const attempt =
+        typeof data.attempt === 'number' && typeof data.maxAttempts === 'number'
+          ? ` · attempt ${data.attempt}/${data.maxAttempts}`
+          : '';
+      chunks.push(`◀ LLM RESPONSE${attempt}${message ? ` — ${message}` : ''}`);
+      const meta: string[] = [];
+      if (data.model) meta.push(`model=${data.model}`);
+      if (typeof data.latencyMs === 'number') meta.push(`latency=${data.latencyMs}ms`);
+      if (typeof data.inputTokens === 'number') meta.push(`in=${data.inputTokens}`);
+      if (typeof data.outputTokens === 'number') meta.push(`out=${data.outputTokens}`);
+      if (meta.length) chunks.push(meta.join(' · '));
+      const content = data.content != null ? String(data.content) : '';
+      chunks.push(
+        content.trim()
+          ? `──── ASSISTANT ────\n${content}`
+          : '──── ASSISTANT ────\n(empty response body)',
+      );
+    } else if (typeNorm === 'llm.failed' || typeNorm.includes('llm.failed')) {
+      chunks.push(`◀ LLM RESPONSE (parse/request issue)${message ? ` — ${message}` : ''}`);
+      if (data.error && String(data.error) !== message) chunks.push(String(data.error));
+      const failedContent = data.content != null ? String(data.content) : '';
+      chunks.push(
+        failedContent.trim()
+          ? `──── ASSISTANT (raw) ────\n${failedContent}`
+          : '──── ASSISTANT (raw) ────\n(empty response body)',
+      );
+    } else if (type.includes('STARTED') || type.includes('started')) {
       chunks.push(message || `▶ enter ${phase}${data.currentStage ? ` (${data.currentStage})` : ''}`);
     } else if (type.includes('COMPLETED') || type.includes('completed')) {
       chunks.push(message || `■ leave ${phase}`);
@@ -161,6 +225,12 @@ function stageActivityHint(lines: ConsoleLine[]): string {
   if (joined.includes('opened pull request') || joined.includes('committed')) {
     return 'real GitHub work';
   }
+  if (joined.includes('──── system ────') || joined.includes('──── assistant ────') || joined.includes('llm request')) {
+    return 'full LLM request/response';
+  }
+  if (joined.includes('asking llm') || joined.includes('llm responded')) {
+    return 'LLM block generation';
+  }
   if (joined.includes('generated blocks/') || joined.includes('files:')) {
     return 'generated files (in-memory)';
   }
@@ -203,6 +273,61 @@ export default function RunDetailPage() {
   const [consoleScope, setConsoleScope] = useState<string>('ALL');
   const [consoleFollow, setConsoleFollow] = useState(true);
   const consoleEndRef = React.useRef<HTMLDivElement | null>(null);
+  const projectFetchedFor = React.useRef<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const loadRun = React.useCallback(async (): Promise<boolean> => {
+    if (!rawId) return false;
+    try {
+      const runRes = await fetch(`/api/backend/runs/${rawId}`);
+      const runData = await runRes.json().catch(() => ({}));
+
+      if (!runRes.ok || !runData?.run) {
+        setLiveRun(null);
+        setLoadError(runData?.error || 'Run not found');
+        setRunStatus('NOT_FOUND');
+        setLoading(false);
+        return false;
+      }
+
+      const run = runData.run;
+      setLiveRun(run);
+      setRunStatus(run.status || 'RECEIVED');
+      setLoadError(null);
+
+      const eventsRes = await fetch(`/api/backend/runs/${rawId}/events?limit=500`);
+      const eventsData = await eventsRes.json().catch(() => ({}));
+      if (Array.isArray(eventsData.events)) {
+        setEvents(eventsData.events);
+      }
+
+      const projectId = run.projectId as string | undefined;
+      if (projectId && projectFetchedFor.current !== projectId) {
+        const pRes = await fetch(`/api/backend/projects/${projectId}`);
+        const pData = await pRes.json().catch(() => ({}));
+        if (pData?.project) {
+          setProject(pData.project);
+          projectFetchedFor.current = projectId;
+        } else {
+          const listRes = await fetch('/api/backend/projects');
+          const listData = await listRes.json().catch(() => ({}));
+          const found = listData?.projects?.find((p: any) => p.id === projectId);
+          if (found) {
+            setProject(found);
+            projectFetchedFor.current = projectId;
+          }
+        }
+      }
+
+      setLoading(false);
+      return !isTerminalRunStatus(run.status);
+    } catch {
+      setLoadError('Failed to load run');
+      setRunStatus('ERROR');
+      setLoading(false);
+      return false;
+    }
+  }, [rawId]);
 
   useEffect(() => {
     if (!rawId) {
@@ -212,65 +337,23 @@ export default function RunDetailPage() {
     }
 
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
 
-    const load = async () => {
-      try {
-        const runRes = await fetch(`/api/backend/runs/${rawId}`);
-        const runData = await runRes.json().catch(() => ({}));
-
-        if (!runRes.ok || !runData?.run) {
-          if (!cancelled) {
-            setLiveRun(null);
-            setLoadError(runData?.error || 'Run not found');
-            setRunStatus('NOT_FOUND');
-            setLoading(false);
-          }
-          return;
-        }
-
-        const run = runData.run;
-        if (!cancelled) {
-          setLiveRun(run);
-          setRunStatus(run.status || 'RECEIVED');
-          setLoadError(null);
-        }
-
-        const eventsRes = await fetch(`/api/backend/runs/${rawId}/events?limit=300`);
-        const eventsData = await eventsRes.json().catch(() => ({}));
-        if (!cancelled && Array.isArray(eventsData.events)) {
-          setEvents(eventsData.events);
-        }
-
-        const projectId = run.projectId as string | undefined;
-        if (projectId) {
-          const pRes = await fetch(`/api/backend/projects/${projectId}`);
-          const pData = await pRes.json().catch(() => ({}));
-          if (!cancelled && pData?.project) {
-            setProject(pData.project);
-          } else if (!cancelled) {
-            const listRes = await fetch('/api/backend/projects');
-            const listData = await listRes.json().catch(() => ({}));
-            const found = listData?.projects?.find((p: any) => p.id === projectId);
-            if (found) setProject(found);
-          }
-        }
-      } catch {
-        if (!cancelled) {
-          setLoadError('Failed to load run');
-          setRunStatus('ERROR');
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
+    const tick = async () => {
+      const stillActive = await loadRun();
+      if (cancelled) return;
+      // Fast poll only while pipeline is advancing; stop when terminal
+      if (stillActive) {
+        timer = setTimeout(tick, POLL_ACTIVE_MS);
       }
     };
 
-    load();
-    const interval = setInterval(load, 2500);
+    void tick();
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      if (timer) clearTimeout(timer);
     };
-  }, [rawId]);
+  }, [rawId, loadRun, refreshKey]);
 
   const handleApprove = () => {
     setIsApproved(true);
@@ -482,6 +565,7 @@ export default function RunDetailPage() {
       <TopBar
         title={`Run ${rawId}`}
         subtitle={`${runStatus}${liveRun.currentStage ? ` · ${liveRun.currentStage}` : ''} · progress ${progressPct}%`}
+        onRefresh={() => setRefreshKey((k) => k + 1)}
         actions={
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button

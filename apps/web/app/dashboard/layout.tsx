@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Sidebar } from '../../components/layout/Sidebar';
+import { FloatingRefreshButton } from '../../components/layout/FloatingRefreshButton';
 
 export const metadata: Metadata = {
   title: 'Overview',
@@ -14,7 +15,8 @@ export default function DashboardLayout({
     <div
       style={{
         display: 'flex',
-        minHeight: '100vh',
+        height: '100vh',
+        overflow: 'hidden',
         background: 'var(--bg-base)',
       }}
     >
@@ -24,12 +26,17 @@ export default function DashboardLayout({
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
-          minWidth: 0, // prevent flex overflow
-          overflow: 'hidden',
+          minWidth: 0,
+          minHeight: 0,
+          height: '100%',
+          // Scroll lives here so TopBar sticky can lock against this container
+          overflowY: 'auto',
+          overflowX: 'hidden',
         }}
       >
         {children}
       </main>
+      <FloatingRefreshButton />
     </div>
   );
 }

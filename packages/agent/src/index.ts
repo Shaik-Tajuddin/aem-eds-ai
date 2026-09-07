@@ -20,9 +20,26 @@ export { EdsDeveloperAgent } from './agents/eds-developer.js';
 export { UniversalEditorAgent } from './agents/ue-agent.js';
 export { QAValidationAgent } from './agents/qa-agent.js';
 export { FixAgent } from './agents/fix-agent.js';
-export { DeploymentAgent } from './agents/deployment-agent.js';
+export { BuildValidationAgent } from './agents/build-agent.js';
+export {
+  VisualValidationAgent,
+  AccessibilityAgent,
+  PerformanceAgent,
+  QualityGateAgent,
+} from './agents/validation-agents.js';
+export { runLiveBrowserAudit } from './live-browser-audit.js';
+export type { LiveBrowserAuditResult } from './live-browser-audit.js';
 export {
   preparePublishWorkspace,
   cleanupPublishWorkspace,
 } from './publish-workspace.js';
 export type { PublishWorkspaceResult } from './publish-workspace.js';
+export {
+  captureReferencePage,
+  buildReferenceFallbackUrls,
+  buildReferenceFetchCandidates,
+  resolveReferenceSourceUrl,
+  isAemAuthorUrl,
+  buildAuthoringPageUrl,
+} from './reference-capture.js';
+export type { ReferenceSnapshot, ReferenceCaptureOptions } from './reference-capture.js';

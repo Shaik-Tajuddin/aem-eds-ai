@@ -88,6 +88,8 @@ export async function processAgentRunJob(
       baseBranch: data.baseBranch,
       sourceType: data.sourceType,
       sourceUrl: data.sourceUrl,
+      authorUrl: data.authorUrl || process.env.AEM_AUTHOR_URL || undefined,
+      aemPageId: data.aemPageId,
     });
 
     const durationMs = Date.now() - startTime;

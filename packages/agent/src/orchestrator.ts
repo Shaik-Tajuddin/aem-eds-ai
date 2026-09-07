@@ -16,6 +16,13 @@ import { UniversalEditorAgent } from './agents/ue-agent.js';
 import { QAValidationAgent } from './agents/qa-agent.js';
 import { FixAgent } from './agents/fix-agent.js';
 import { DeploymentAgent } from './agents/deployment-agent.js';
+import { BuildValidationAgent } from './agents/build-agent.js';
+import {
+  VisualValidationAgent,
+  AccessibilityAgent,
+  PerformanceAgent,
+  QualityGateAgent,
+} from './agents/validation-agents.js';
 import {
   PIPELINE_STAGE_ORDER,
   PIPELINE_STAGE_LABELS,
@@ -35,6 +42,10 @@ export interface OrchestratorRunOptions {
   workBranch?: string;
   sourceType: string;
   sourceUrl?: string;
+  /** AEM author host for MCP/JCR structured capture */
+  authorUrl?: string;
+  /** Optional MCP pageId when known */
+  aemPageId?: string;
   maxRuntimeMinutes?: number;
   maxLLMCalls?: number;
   maxToolCalls?: number;
@@ -49,6 +60,35 @@ export interface RunEventListener {
   (type: AgentEventType, payload: Record<string, unknown>): void | Promise<void>;
 }
 
+function createLlmGatewayFromEnv(): LLMGateway {
+  const providerId = LLMGateway.normalizeProviderId(process.env.LLM_PROVIDER);
+  const apiUrl = process.env.LLM_API_URL;
+  const apiKey = process.env.LLM_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.AZURE_OPENAI_API_KEY;
+  const model = process.env.LLM_MODEL || 'gpt-4o';
+  const maxTokens = Number(process.env.LLM_MAX_TOKENS || 8000);
+  const temperature = Number(process.env.LLM_TEMPERATURE || 0.2);
+
+  const providerConfig = {
+    provider: providerId,
+    apiUrl,
+    model,
+    embeddingModel: process.env.LLM_EMBEDDING_MODEL || process.env.EMBEDDING_MODEL,
+    maxTokens: Number.isFinite(maxTokens) ? maxTokens : 8000,
+    temperature: Number.isFinite(temperature) ? temperature : 0.2,
+    timeoutMs: 120000,
+    azureDeployment: process.env.AZURE_OPENAI_DEPLOYMENT,
+    azureApiVersion: process.env.AZURE_OPENAI_API_VERSION,
+  };
+
+  const gateway = new LLMGateway({
+    defaultProvider: providerId,
+    providers: [providerConfig],
+  });
+
+  gateway.registerProvider(providerConfig, apiKey);
+  return gateway;
+}
+
 export class AgentOrchestrator {
   private stateMachine: RunStateMachine;
   private agents: Map<RunStatus, BaseAgent> = new Map();
@@ -59,7 +99,7 @@ export class AgentOrchestrator {
 
   constructor(runId: string, llmGateway?: LLMGateway, toolRegistry?: ToolRegistry, maxFixIterations = 5) {
     this.stateMachine = new RunStateMachine(runId, RunStatus.RECEIVED, maxFixIterations);
-    this.llmGateway = llmGateway || new LLMGateway();
+    this.llmGateway = llmGateway || createLlmGatewayFromEnv();
     this.toolRegistry = toolRegistry || new ToolRegistry();
 
     // Register phase handlers
@@ -67,7 +107,12 @@ export class AgentOrchestrator {
     this.registerAgent(new ArchitectureAgent());
     this.registerAgent(new EdsDeveloperAgent());
     this.registerAgent(new UniversalEditorAgent());
+    this.registerAgent(new BuildValidationAgent());
     this.registerAgent(new QAValidationAgent());
+    this.registerAgent(new VisualValidationAgent());
+    this.registerAgent(new AccessibilityAgent());
+    this.registerAgent(new PerformanceAgent());
+    this.registerAgent(new QualityGateAgent());
     this.registerAgent(new FixAgent());
     this.registerAgent(new DeploymentAgent());
   }
@@ -126,10 +171,13 @@ export class AgentOrchestrator {
       workBranch,
       sourceType: options.sourceType,
       sourceUrl: options.sourceUrl,
+      authorUrl: options.authorUrl,
+      aemPageId: options.aemPageId,
       llmGateway: this.llmGateway,
       toolRegistry: this.toolRegistry,
       generatedFiles: new Map(),
       bugs: [],
+      evidence: [],
       skipGitHubPublish: options.skipGitHubPublish,
       log: (msg) => {
         const phase = this.stateMachine.getStatus();
@@ -139,6 +187,16 @@ export class AgentOrchestrator {
           phase,
           status: phase,
           currentStage: PIPELINE_STAGE_LABELS[phase] || phase,
+        });
+      },
+      emit: (type, payload = {}) => {
+        const phase = this.stateMachine.getStatus();
+        void this.emit(type as AgentEventType, {
+          runId,
+          phase,
+          status: phase,
+          currentStage: PIPELINE_STAGE_LABELS[phase] || phase,
+          ...payload,
         });
       },
     };
@@ -209,19 +267,15 @@ export class AgentOrchestrator {
             throw new Error(result.error || `Agent ${agent.name} failed at phase ${targetPhase}`);
           }
         } else {
-          // Stages without a dedicated agent still advance with an auditable log
-          const summaries: Record<string, string> = {
-            [RunStatus.BUILDING]: 'Bundled block JS/CSS and verified decorate() exports.',
-            [RunStatus.DEPLOYING_PREVIEW]: `Staging preview for ${repoOwner}/${repoName} (GitHub branch/PR created at PR_CREATED when GITHUB_TOKEN is set).`,
-            [RunStatus.VISUAL_VALIDATION]: 'Compared implementation screenshots against source reference (local gate).',
-            [RunStatus.ACCESSIBILITY]: 'Ran WCAG 2.1 AA checks on generated block markup.',
-            [RunStatus.PERFORMANCE]: 'Checked Core Web Vitals budgets for preview URL.',
-            [RunStatus.QUALITY_GATE]: 'Evaluated visual, a11y, performance, and functional gates.',
+          // Stages without a dedicated agent — emit explicit SKIPPED evidence, never fake PASS
+          const skipPhases: Partial<Record<RunStatus, string>> = {
+            [RunStatus.DEPLOYING_PREVIEW]:
+              'Preview deploy stage has no dedicated agent in this run; GitHub branch/PR evidence is recorded at PR_CREATED when configured.',
             [RunStatus.WAITING_APPROVAL]: 'Waiting for human approval before production merge / AEM live publish.',
           };
-          context.log(summaries[targetPhase] || `Completed stage ${label}`);
-          // Brief pause so UI polling can observe mid-run stages
-          await sleep(400);
+          const msg = skipPhases[targetPhase] || `Completed stage ${label} (no dedicated agent)`;
+          context.log(msg);
+          await sleep(200);
         }
 
         await this.emit(AgentEventType.AGENT_STEP_COMPLETED, {

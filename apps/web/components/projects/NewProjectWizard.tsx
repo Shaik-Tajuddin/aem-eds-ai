@@ -169,7 +169,11 @@ function Step2({
         ["FIGMA", "EXISTING_WEBSITE", "EXISTING_AEM_PAGE"].includes(
           data.sourceType,
         ) && (
-          <FormField label="Source URL" required>
+          <FormField
+            label="Source / Reference URL"
+            required
+            hint="Page to convert FROM (publish or live). Example: https://publish-p…adobeaemcloud.com/content/…/about-us.plain.html — not the author destination."
+          >
             <input
               id="source-url"
               type="url"
@@ -178,7 +182,7 @@ function Step2({
                   ? "https://www.figma.com/file/..."
                   : data.sourceType === "EXISTING_WEBSITE"
                     ? "https://example.com/page"
-                    : "https://author.aem.cloud/content/..."
+                    : "https://publish-p12345-e67890.adobeaemcloud.com/content/.../page.plain.html"
               }
               value={data.sourceUrl}
               onChange={(e) => onChange({ sourceUrl: e.target.value })}

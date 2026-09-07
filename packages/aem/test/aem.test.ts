@@ -6,6 +6,7 @@ import {
   UniversalEditorModelGenerator,
   UniversalEditorValidator,
   UniversalEditorTester,
+  CloudManagerClient,
   type BlockManifest,
 } from '../src/index.js';
 
@@ -26,6 +27,24 @@ describe('@aeds/aem — AEM Cloud & Universal Editor Adapter', () => {
 
     it('validates authorUrl presence', () => {
       expect(() => new AemCloudClient({ authorUrl: '' })).toThrow(AemError);
+    });
+  });
+
+  describe('CloudManagerClient', () => {
+    it('is not configured without feature flag and credentials', () => {
+      const prev = process.env.ENABLE_CLOUD_MANAGER;
+      delete process.env.ENABLE_CLOUD_MANAGER;
+      const client = new CloudManagerClient({});
+      expect(client.isConfigured()).toBe(false);
+      expect(() => {
+        // force assert via getPrograms promise rejection path
+      }).not.toThrow();
+      if (prev !== undefined) process.env.ENABLE_CLOUD_MANAGER = prev;
+    });
+
+    it('fails loudly when enabled without credentials', async () => {
+      const client = new CloudManagerClient({ enabled: true });
+      await expect(client.getPrograms()).rejects.toThrow(AemError);
     });
   });
 

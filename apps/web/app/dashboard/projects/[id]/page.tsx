@@ -669,7 +669,6 @@ export default function ProjectDetailPage() {
         initialBranch={project.branch}
         initialSourceUrl={
           project.sourceUrl ||
-          project.aemEnvironment ||
           undefined
         }
         initialSourceType={
