@@ -1,11 +1,12 @@
 // ============================================================
-// @aeds/agent — Live browser audit helper (in-process Playwright)
+// @aeds/agent — Live browser audit helper (via ToolRegistry)
 // Produces SYSTEM EVIDENCE; never fabricates PASS on failure
 // ============================================================
 
-import { BrowserController, type PageAuditResult, type ViewportName } from '@aeds/browser';
+import type { PageAuditResult, ViewportName } from '@aeds/browser';
 import type { RunExecutionContext } from './agents/base.js';
 import type { SystemEvidence } from '@aeds/shared';
+import { executeTool } from './execute-tool.js';
 
 export interface LiveBrowserAuditResult {
   ok: boolean;
@@ -19,9 +20,68 @@ function shouldRunLiveBrowser(context: RunExecutionContext): boolean {
   if (process.env.VITEST || process.env.NODE_ENV === 'test') return false;
   if (process.env.ENABLE_LIVE_BROWSER === 'false') return false;
   if (process.env.ENABLE_LIVE_BROWSER === 'true') return Boolean(context.previewUrl || context.sourceUrl);
-  // Default: run when a concrete http(s) preview/source URL is present outside tests
   const url = context.previewUrl || context.sourceUrl;
   return Boolean(url && /^https?:\/\//i.test(url));
+}
+
+type AuditToolData = {
+  url: string;
+  statusCode?: number;
+  title?: string;
+  loadTimeMs: number;
+  a11yViolations: Array<{
+    id: string;
+    impact?: string;
+    description: string;
+    helpUrl?: string;
+    nodes?: number;
+  }>;
+  a11yMode?: 'axe' | 'heuristic';
+  consoleLogs: Array<{ type: string; text: string }>;
+  networkErrors: Array<{ url: string; method?: string; status?: number; errorText?: string }>;
+  screenshotBase64?: string;
+  domSummary?: PageAuditResult['domSummary'];
+  performanceMetrics?: PageAuditResult['performanceMetrics'];
+};
+
+function toPageAudit(data: AuditToolData, viewport: ViewportName): PageAuditResult {
+  return {
+    url: data.url,
+    statusCode: data.statusCode ?? 0,
+    title: data.title || '',
+    loadTimeMs: data.loadTimeMs,
+    viewport,
+    a11yViolations: (data.a11yViolations || []).map((v) => ({
+      id: v.id,
+      impact: (v.impact as 'critical' | 'serious' | 'moderate' | 'minor') || 'serious',
+      description: v.description,
+      helpUrl: v.helpUrl || '',
+      nodes: typeof v.nodes === 'number' ? v.nodes : 0,
+    })),
+    a11yMode: data.a11yMode || 'heuristic',
+    consoleLogs: (data.consoleLogs || []).map((l) => ({
+      type: (l.type as any) || 'log',
+      text: l.text,
+      timestamp: new Date().toISOString(),
+    })),
+    networkErrors: (data.networkErrors || []).map((e) => ({
+      url: e.url,
+      method: e.method || 'GET',
+      status: e.status,
+      errorText: e.errorText,
+      timestamp: new Date().toISOString(),
+    })),
+    screenshotBase64: data.screenshotBase64,
+    domSummary: data.domSummary || {
+      sectionsCount: 0,
+      blocksCount: 0,
+      detectedBlocks: [],
+      hasMain: false,
+      hasHeader: false,
+      hasFooter: false,
+    },
+    performanceMetrics: data.performanceMetrics,
+  };
 }
 
 export async function runLiveBrowserAudit(
@@ -48,13 +108,21 @@ export async function runLiveBrowserAudit(
   }
 
   const url = (context.previewUrl || context.sourceUrl)!;
-  const controller = new BrowserController({ headless: process.env.PLAYWRIGHT_HEADLESS !== 'false' });
   const audits: PageAuditResult[] = [];
   const evidence: SystemEvidence[] = [];
 
   try {
     for (const vp of viewports) {
-      const audit = await controller.auditPage(url, vp);
+      const toolResult = await executeTool(context, 'browser.auditPage', {
+        url,
+        viewport: vp,
+      });
+
+      if (!toolResult.success || !toolResult.data) {
+        throw new Error(toolResult.error || `browser.auditPage failed for ${vp}`);
+      }
+
+      const audit = toPageAudit(toolResult.data as AuditToolData, vp);
       audits.push(audit);
 
       if (audit.screenshotBase64) {
@@ -88,7 +156,7 @@ export async function runLiveBrowserAudit(
       id: `ev_browser_${Date.now()}`,
       kind: 'browser',
       status: ok ? 'PASS' : 'FAIL',
-      summary: `Live Playwright audit (${viewports.join(', ')}) consoleErrors=${consoleErrors} networkErrors=${networkErrors} a11y=${a11yCount} (${a11yMode})`,
+      summary: `Live Playwright audit via tool registry (${viewports.join(', ')}) consoleErrors=${consoleErrors} networkErrors=${networkErrors} a11y=${a11yCount} (${a11yMode})`,
       metrics: { consoleErrors, networkErrors, a11yCount, viewportCount: viewports.length },
       producedAt: new Date().toISOString(),
       mode: 'live',
@@ -106,7 +174,5 @@ export async function runLiveBrowserAudit(
       mode: 'unavailable',
     });
     return { ok: false, mode: 'failed', audits, evidence, error: message };
-  } finally {
-    await controller.close().catch(() => {});
   }
 }

@@ -16,6 +16,9 @@ import { runsPlugin } from './routes/runs.js';
 import { eventsPlugin } from './routes/events.js';
 import { githubPlugin } from './routes/github.js';
 import { knowledgePlugin } from './routes/knowledge.js';
+import { toolsPlugin } from './routes/tools.js';
+import { usagePlugin } from './routes/usage.js';
+import { uePlugin } from './routes/ue.js';
 
 const isDev = process.env['NODE_ENV'] !== 'production';
 const port = Number(process.env['API_PORT'] ?? 3001);
@@ -131,6 +134,9 @@ export async function buildServer() {
   await server.register(eventsPlugin, { prefix: '/api/events' });
   await server.register(githubPlugin, { prefix: '/api/github' });
   await server.register(knowledgePlugin, { prefix: '/api/knowledge' });
+  await server.register(toolsPlugin, { prefix: '/api/tools' });
+  await server.register(usagePlugin, { prefix: '/api/usage' });
+  await server.register(uePlugin, { prefix: '/api/ue' });
 
   return server;
 }

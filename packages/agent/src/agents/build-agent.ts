@@ -5,6 +5,8 @@
 
 import { RunStatus, type SystemEvidence } from '@aeds/shared';
 import { BaseAgent, type RunExecutionContext, type AgentExecutionResult } from './base.js';
+import { executeTool } from '../execute-tool.js';
+import { validateEdsArtifacts } from '../validate-artifacts.js';
 
 function makeEvidence(
   kind: SystemEvidence['kind'],
@@ -34,46 +36,43 @@ export class BuildValidationAgent extends BaseAgent {
     context.log('Running build validation against generated files...');
     context.evidence = context.evidence || [];
 
-    const files = Array.from(context.generatedFiles.values());
-    const jsBlocks = files.filter((f) => f.path.startsWith('blocks/') && f.path.endsWith('.js'));
-    const errors: string[] = [];
+    const files = Array.from(context.generatedFiles.values()).map((f) => ({
+      path: f.path,
+      content: f.content,
+    }));
 
-    if (files.length === 0) {
-      errors.push('No generated files to build');
-    }
+    let result = validateEdsArtifacts(files);
 
-    for (const file of jsBlocks) {
-      if (!file.content.includes('export default function decorate')) {
-        errors.push(`${file.path}: missing export default function decorate`);
-      }
-      if (/from\s+['"]react['"]|require\(['"]react['"]\)/.test(file.content)) {
-        errors.push(`${file.path}: forbidden React dependency in EDS block`);
-      }
-    }
-
-    for (const file of files.filter((f) => f.path.endsWith('.json'))) {
-      try {
-        JSON.parse(file.content);
-      } catch {
-        errors.push(`${file.path}: invalid JSON`);
+    // Prefer tool registry path outside unit tests (audited execution)
+    if (!process.env.VITEST && process.env.NODE_ENV !== 'test') {
+      const toolResult = await executeTool(context, 'build.validateArtifacts', { files });
+      if (toolResult.success && toolResult.data) {
+        result = toolResult.data as typeof result;
+      } else if (!toolResult.success) {
+        context.log(
+          `build.validateArtifacts tool failed (${toolResult.error}); using local validator result`,
+          'warn',
+        );
       }
     }
 
-    const status = errors.length === 0 ? 'PASS' : 'FAIL';
+    const status = result.passed ? 'PASS' : 'FAIL';
     const evidence = makeEvidence(
       'build',
       status,
-      errors.length === 0
-        ? `Build validation passed for ${files.length} file(s), ${jsBlocks.length} block JS`
-        : `Build validation failed: ${errors.join('; ')}`,
+      result.summary,
       'static',
-      { fileCount: files.length, blockJsCount: jsBlocks.length, errorCount: errors.length },
+      {
+        fileCount: result.fileCount,
+        blockJsCount: result.blockJsCount,
+        errorCount: result.errorCount,
+      },
     );
     context.evidence.push(evidence);
     context.emit('build.completed', { evidence });
 
-    if (errors.length > 0) {
-      for (const err of errors) {
+    if (!result.passed) {
+      for (const err of result.errors) {
         context.bugs.push({
           id: `bug_build_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
           title: 'Build validation failure',
@@ -83,7 +82,7 @@ export class BuildValidationAgent extends BaseAgent {
       }
       return {
         success: false,
-        decision: this.createDecision(context, 'Validate build artifacts', errors, evidence.summary),
+        decision: this.createDecision(context, 'Validate build artifacts', result.errors, evidence.summary),
         error: evidence.summary,
       };
     }
@@ -93,7 +92,7 @@ export class BuildValidationAgent extends BaseAgent {
       decision: this.createDecision(
         context,
         'Validate build artifacts',
-        ['Check decorate exports', 'Reject forbidden deps', 'Parse JSON configs'],
+        ['Check decorate exports', 'Reject forbidden deps', 'Parse JSON configs', 'Via build.validateArtifacts tool'],
         evidence.summary,
       ),
     };

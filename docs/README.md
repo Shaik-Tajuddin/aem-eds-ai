@@ -24,7 +24,7 @@ Working name: **AI EDS Developer** (renameable).
 | [universal-editor.md](./universal-editor.md) | Models, validators, authoring tester |
 | [testing.md](./testing.md) | Vitest, Playwright, axe, workers |
 | [visual-validation.md](./visual-validation.md) | pixelmatch flow and evidence rules |
-| [evaluation.md](./evaluation.md) | Quality gate today; harness planned |
+| [evaluation.md](./evaluation.md) | Benchmark tasks + evidence scoring |
 | [troubleshooting.md](./troubleshooting.md) | Common failures and fixes |
 
 ## Environment & product

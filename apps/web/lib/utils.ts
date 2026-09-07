@@ -26,9 +26,11 @@ export function formatDuration(ms: number): string {
  * e.g. "2 min ago", "1h ago"
  */
 export function formatRelativeTime(isoString: string): string {
+  if (!isoString || isoString === 'Recently') return 'recently';
   const now = Date.now();
   const ts = new Date(isoString).getTime();
-  const diffMs = now - ts;
+  if (!Number.isFinite(ts)) return 'recently';
+  const diffMs = Math.max(0, now - ts);
   const diffSeconds = Math.floor(diffMs / 1000);
   const diffMinutes = Math.floor(diffSeconds / 60);
   const diffHours = Math.floor(diffMinutes / 60);
@@ -76,6 +78,7 @@ export const TERMINAL_RUN_STATUSES = new Set([
   'LIMIT_REACHED',
   'PR_CREATED',
   'COMPLETED',
+  'PAUSED',
   'NOT_FOUND',
   'ERROR',
 ]);
@@ -83,6 +86,12 @@ export const TERMINAL_RUN_STATUSES = new Set([
 export function isTerminalRunStatus(status?: string | null): boolean {
   if (!status) return false;
   return TERMINAL_RUN_STATUSES.has(status);
+}
+
+/** True when a run is still advancing the pipeline (not finished, failed, or paused). */
+export function isActiveRunStatus(status?: string | null): boolean {
+  if (!status) return false;
+  return !isTerminalRunStatus(status);
 }
 
 /** Poll while a pipeline is actively advancing */

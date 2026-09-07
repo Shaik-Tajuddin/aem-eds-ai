@@ -577,6 +577,14 @@ export default function KnowledgePage() {
   const [catalogFilterType, setCatalogFilterType] = useState('all');
   const [selectedDocForModal, setSelectedDocForModal] = useState<KnowledgeDocItem | null>(null);
   const [copiedDoc, setCopiedDoc] = useState(false);
+  const [catalogAsk, setCatalogAsk] = useState<{
+    answer: string | null;
+    mode?: string;
+    message?: string;
+    model?: string;
+    loading: boolean;
+    matchedIds: string[];
+  }>({ answer: null, loading: false, matchedIds: [] });
 
   // Ingestion Modal
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -593,6 +601,23 @@ export default function KnowledgePage() {
   const [activeTab, setActiveTab] = useState<'catalog' | 'search' | 'prompt'>('catalog');
   const [copied, setCopied] = useState(false);
   const [isReindexing, setIsReindexing] = useState(false);
+  const [liveSearch, setLiveSearch] = useState<{
+    mode: string;
+    empty: boolean;
+    message?: string;
+    results: Array<{
+      chunkId: string;
+      documentId: string;
+      title?: string;
+      source?: string;
+      sourceType?: string;
+      content: string;
+      rawSimilarity: number;
+      weightedScore: number;
+      sourceWeight: number;
+    }>;
+  } | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/backend/knowledge')
@@ -617,22 +642,153 @@ export default function KnowledgePage() {
       .catch((err) => console.warn('Failed to load knowledge documents from backend:', err));
   }, []);
 
-  // Filter catalog docs
+  // Filter catalog docs — token match (not exact phrase) so "vision of this project" hits Product Vision
   const filteredDocs = useMemo(() => {
-    return docs.filter((d) => {
-      const matchesType = catalogFilterType === 'all' || d.sourceType === catalogFilterType;
-      const q = catalogSearch.toLowerCase().trim();
-      const matchesQuery =
-        !q ||
-        d.title.toLowerCase().includes(q) ||
-        d.source.toLowerCase().includes(q) ||
-        d.content.toLowerCase().includes(q);
-      return matchesType && matchesQuery;
-    });
-  }, [docs, catalogFilterType, catalogSearch]);
+    const STOP = new Set([
+      'a', 'an', 'the', 'of', 'this', 'that', 'is', 'are', 'to', 'for', 'in', 'on', 'at', 'by',
+      'with', 'from', 'as', 'or', 'and', 'it', 'about', 'what', 'how', 'why',
+    ]);
+    const q = catalogSearch.toLowerCase().trim();
+    const tokens = q
+      .split(/[^a-z0-9]+/i)
+      .map((t) => t.trim())
+      .filter((t) => t.length > 1 && !STOP.has(t));
 
-  // Compute retrieval results based on search query and weights
+    const matched = new Set(catalogAsk.matchedIds);
+
+    return docs
+      .filter((d) => {
+        const matchesType = catalogFilterType === 'all' || d.sourceType === catalogFilterType;
+        if (!matchesType) return false;
+        if (!q) return true;
+        if (matched.has(d.id)) return true;
+        const hay = `${d.title}\n${d.source}\n${d.content}`.toLowerCase();
+        if (tokens.length === 0) return hay.includes(q);
+        // Prefer any strong token hit; require at least half of meaningful tokens
+        const hits = tokens.filter((t) => hay.includes(t)).length;
+        return hits >= Math.max(1, Math.ceil(tokens.length * 0.5));
+      })
+      .sort((a, b) => {
+        if (!q) return 0;
+        const score = (d: KnowledgeDocItem) => {
+          if (matched.has(d.id)) return 100;
+          const hay = `${d.title}\n${d.source}\n${d.content}`.toLowerCase();
+          return tokens.filter((t) => hay.includes(t)).length + (d.title.toLowerCase().includes('vision') ? 1 : 0);
+        };
+        return score(b) - score(a);
+      });
+  }, [docs, catalogFilterType, catalogSearch, catalogAsk.matchedIds]);
+
+  // Catalog ask: retrieve + LLM answer when the user types a question
+  useEffect(() => {
+    if (activeTab !== 'catalog') return;
+    const q = catalogSearch.trim();
+    if (q.length < 3) {
+      setCatalogAsk({ answer: null, loading: false, matchedIds: [] });
+      return;
+    }
+    let cancelled = false;
+    setCatalogAsk((prev) => ({ ...prev, loading: true }));
+    const t = setTimeout(() => {
+      fetch('/api/backend/knowledge/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: q, topK: 6 }),
+      })
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+          if (cancelled) return;
+          const matchedIds = Array.isArray(data.results)
+            ? data.results.map((r: any) => String(r.documentId || r.chunkId)).filter(Boolean)
+            : [];
+          setCatalogAsk({
+            answer: data.answer || null,
+            mode: data.mode,
+            message: data.message,
+            model: data.model,
+            loading: false,
+            matchedIds,
+          });
+        })
+        .catch((err: unknown) => {
+          if (cancelled) return;
+          setCatalogAsk({
+            answer: null,
+            loading: false,
+            matchedIds: [],
+            message: err instanceof Error ? err.message : String(err),
+          });
+        });
+    }, 450);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [catalogSearch, activeTab]);
+
+  // Live knowledge search (RAG or keyword fallback from API)
+  useEffect(() => {
+    if (activeTab !== 'search' && activeTab !== 'prompt') return;
+    const q = searchQuery.trim();
+    if (!q) {
+      setLiveSearch(null);
+      return;
+    }
+    let cancelled = false;
+    const t = setTimeout(() => {
+      fetch('/api/backend/knowledge/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: q, topK: 8, applySourceWeights: applyWeights }),
+      })
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+          if (!cancelled) {
+            setLiveSearch(data);
+            setSearchError(null);
+          }
+        })
+        .catch((err: unknown) => {
+          if (!cancelled) {
+            setSearchError(err instanceof Error ? err.message : String(err));
+            setLiveSearch(null);
+          }
+        });
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [searchQuery, applyWeights, activeTab]);
+
+  // Compute retrieval results: prefer live API; fall back to labeled simulator only if API failed
   const searchResults = useMemo(() => {
+    if (liveSearch?.results?.length) {
+      return liveSearch.results
+        .filter((r) => selectedSourceType === 'all' || r.sourceType === selectedSourceType)
+        .map((r) => ({
+          chunk: {
+            id: r.chunkId,
+            title: r.title || 'Untitled',
+            source: r.source || 'unknown',
+            sourceType: (r.sourceType || 'custom') as KnowledgeDocItem['sourceType'],
+            heading: r.title || 'Chunk',
+            language: 'markdown',
+            keywords: [] as string[],
+            baseSimilarity: r.rawSimilarity,
+            codeSnippet: r.content,
+          },
+          rawSimilarity: r.rawSimilarity,
+          weightedScore: r.weightedScore,
+          sourceWeight: r.sourceWeight,
+        }));
+    }
+
+    if (liveSearch && !liveSearch.empty) return [];
+
+    // Simulator only when live search unavailable — labeled in UI
     const q = searchQuery.toLowerCase().trim();
     const queryTokens = q.split(/\s+/).filter(Boolean);
 
@@ -663,7 +819,7 @@ export default function KnowledgePage() {
     })
       .filter((item) => selectedSourceType === 'all' || item.chunk.sourceType === selectedSourceType)
       .sort((a, b) => b.weightedScore - a.weightedScore);
-  }, [searchQuery, selectedSourceType, applyWeights]);
+  }, [searchQuery, selectedSourceType, applyWeights, liveSearch]);
 
   const handleCopyPrompt = () => {
     const topChunks = searchResults.slice(0, 3);
@@ -790,7 +946,15 @@ export default function KnowledgePage() {
               style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
             >
               <Search size={14} />
-              <span>Semantic Retrieval Simulator</span>
+              <span>
+                {liveSearch?.mode === 'rag'
+                  ? 'Semantic Retrieval (live RAG)'
+                  : liveSearch?.mode === 'keyword_fallback'
+                    ? 'Knowledge Search (keyword fallback)'
+                    : searchError
+                      ? 'Semantic Retrieval (simulator — API error)'
+                      : 'Semantic Retrieval'}
+              </span>
             </button>
             <button
               onClick={() => setActiveTab('prompt')}
@@ -835,7 +999,7 @@ export default function KnowledgePage() {
                   type="text"
                   value={catalogSearch}
                   onChange={(e) => setCatalogSearch(e.target.value)}
-                  placeholder="Search documents, block source paths, guidelines..."
+                  placeholder="Ask or search — e.g. vision of this project, hero block guidelines..."
                   style={{
                     width: '100%',
                     padding: '8px 12px 8px 36px',
@@ -872,6 +1036,51 @@ export default function KnowledgePage() {
               </div>
             </div>
 
+            {/* LLM answer panel */}
+            {catalogSearch.trim().length >= 3 && (
+              <div
+                className="card"
+                style={{
+                  padding: '16px 20px',
+                  background: 'linear-gradient(135deg, rgba(59,130,246,0.06), rgba(16,185,129,0.05))',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 'var(--radius-lg)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                  <Sparkles size={14} color="var(--color-info)" />
+                  <strong style={{ fontSize: '13px', color: 'var(--text-primary)' }}>LLM answer</strong>
+                  <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}>
+                    {catalogAsk.loading
+                      ? 'retrieving + generating…'
+                      : catalogAsk.mode
+                        ? `mode=${catalogAsk.mode}${catalogAsk.model ? ` · ${catalogAsk.model}` : ''}`
+                        : ''}
+                  </span>
+                </div>
+                {catalogAsk.loading ? (
+                  <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)' }}>
+                    Searching knowledge and asking the model…
+                  </p>
+                ) : catalogAsk.answer ? (
+                  <div
+                    style={{
+                      fontSize: '13px',
+                      color: 'var(--text-primary)',
+                      lineHeight: 1.55,
+                      whiteSpace: 'pre-wrap',
+                    }}
+                  >
+                    {catalogAsk.answer}
+                  </div>
+                ) : (
+                  <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)' }}>
+                    {catalogAsk.message || 'No answer yet — try a broader question or ingest more docs.'}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Document Table */}
             <div className="card" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
               <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -901,7 +1110,14 @@ export default function KnowledgePage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredDocs.map((doc) => {
+                    {filteredDocs.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} style={{ padding: '36px 16px', textAlign: 'center', color: 'var(--text-tertiary)' }}>
+                          No documents matched “{catalogSearch}”. Try fewer words, or open Semantic Retrieval.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredDocs.map((doc) => {
                       const badgeColor = SOURCE_WEIGHTS[doc.sourceType]?.color || '#3b82f6';
                       return (
                         <tr
@@ -974,7 +1190,8 @@ export default function KnowledgePage() {
                           </td>
                         </tr>
                       );
-                    })}
+                    })
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1067,7 +1284,13 @@ export default function KnowledgePage() {
             {/* Retrieval Result Cards */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-tertiary)' }}>
-                <span>Retrieved <strong>{searchResults.length}</strong> matching vector chunks (sorted by {applyWeights ? 'Weighted Score' : 'Cosine Similarity'})</span>
+                <span>
+                  Retrieved <strong>{searchResults.length}</strong> matching chunks
+                  {liveSearch?.mode ? ` · mode=${liveSearch.mode}` : ' · demo simulator'}
+                  {liveSearch?.message ? ` — ${liveSearch.message}` : ''}
+                  {searchError ? ` — search error: ${searchError}` : ''}
+                  (sorted by {applyWeights ? 'Weighted Score' : 'Cosine Similarity'})
+                </span>
                 <span>pgvector Top-K = 5</span>
               </div>
 

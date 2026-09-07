@@ -25,9 +25,23 @@ Configure and validate authoring contracts so content is editable and persisted 
 
 ## Live authoring loop (status)
 
-Target sequence: open UE → identify fields → edit → save → reopen → verify.
+| Capability | Status |
+|---|---|
+| UE JSON models/filters | ✅ |
+| Offline authoring tester | ✅ |
+| Live `data-aue-*` instrumentation check | ✅ (`ENABLE_LIVE_UE=true`) |
+| Full UE chrome SSO edit → save → reopen | ✅ gated (`ENABLE_LIVE_UE_AUTHORING` + `UE_STORAGE_STATE_PATH` / `UE_EDITOR_URL`; UNAVAILABLE without session) |
+| Tenant selector overrides | ✅ `UE_FIELD_SELECTOR`, `UE_SAVE_SELECTOR`, `UE_CHROME_SELECTOR`, `UE_LOGIN_HINTS` |
 
-Today: models/validators/tester exist; **full live UE browser automation is feature-flagged / next**. Do not claim UE PASS without evidence.
+Live instrumentation uses Playwright against a preview URL and records PASS/FAIL/UNAVAILABLE evidence — never claims success without DOM attributes.
+
+Live authoring opens authenticated UE chrome via Playwright storage state, attempts edit→save→reopen, and only returns PASS when all phases succeed. Missing session/file/Save control → UNAVAILABLE (not PASS).
+
+Optional content reopen: after DOM reload, `verifyUeReopenViaContent` re-reads the page via MCP/JCR (`UE_CONTENT_PAGE_URL` / `AEM_AUTHOR_URL`). Status is recorded as `reopenContent` (PASS/FAIL/UNAVAILABLE/SKIPPED) and never invents success.
+
+Successful and unsuccessful phase outcomes are persisted to `ue_authoring_tests` (one row per phase / instrumentation check), returned on `GET /api/runs/:id`, and summarized on `GET /api/ue/authoring-tests` for the UE dashboard.
+
+The `/dashboard/ue` demo matrix shows **NOT_RUN** until bound to run evidence (no invented PASS).
 
 ## Auth reminder
 

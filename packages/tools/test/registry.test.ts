@@ -55,6 +55,35 @@ describe('Tool System', () => {
       expect(evaluation.allowed).toBe(true);
       expect(evaluation.requiresHumanApproval).toBe(true);
     });
+
+    it('requires approval for high risk unless autoApproveHighRisk', () => {
+      const highTool: ToolDefinition = {
+        ...mockTool,
+        name: 'commit-files',
+        riskLevel: 'high',
+        allowedInScopes: ['*'],
+      };
+      expect(
+        engine.evaluate(highTool, { projectId: 'p1', runId: 'r1' }).requiresHumanApproval,
+      ).toBe(true);
+      expect(
+        engine.evaluate(highTool, {
+          projectId: 'p1',
+          runId: 'r1',
+          autoApproveHighRisk: true,
+        }).requiresHumanApproval,
+      ).toBe(false);
+    });
+
+    it('forceApprove bypasses critical gate', () => {
+      const evaluation = engine.evaluate(mockTool, {
+        projectId: 'proj-1',
+        runId: 'run-1',
+        forceApprove: true,
+      });
+      expect(evaluation.allowed).toBe(true);
+      expect(evaluation.requiresHumanApproval).toBe(false);
+    });
   });
 
   describe('Tool Registry Execution', () => {

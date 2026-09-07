@@ -4,8 +4,8 @@
 // ============================================================
 
 import { RunStatus } from '@aeds/shared';
-import { GitHubAdapter, GitHubError, GitHubErrorCode, GitHubTokenManager } from '@aeds/github';
 import { BaseAgent, type RunExecutionContext, type AgentExecutionResult } from './base.js';
+import { executeTool } from '../execute-tool.js';
 
 const SECTION_MODEL_PATH = 'models/_section.json';
 
@@ -125,23 +125,33 @@ async function readRepoFile(
   if (context.skipGitHubPublish || process.env.VITEST || process.env.NODE_ENV === 'test') {
     return { status: 'not_found' };
   }
-  if (!new GitHubTokenManager().hasToken()) {
-    return { status: 'not_found' };
-  }
 
   try {
-    const adapter = new GitHubAdapter();
-    const file = await adapter.getFileContent(
-      context.repoOwner,
-      context.repoName,
+    const toolResult = await executeTool(context, 'github.readFile', {
+      owner: context.repoOwner,
+      repo: context.repoName,
       path,
-      context.baseBranch,
-    );
-    return { status: 'found', content: file.content };
-  } catch (err: unknown) {
-    if (err instanceof GitHubError && err.code === GitHubErrorCode.NOT_FOUND) {
-      return { status: 'not_found' };
+      ref: context.baseBranch,
+    });
+
+    if (!toolResult.success) {
+      const err = (toolResult.error || '').toLowerCase();
+      if (err.includes('not found') || err.includes('404')) {
+        return { status: 'not_found' };
+      }
+      // Missing token / tool denial → treat as not found for section merge (non-fatal)
+      if (err.includes('github_token') || err.includes('not configured') || err.includes('denied')) {
+        return { status: 'not_found' };
+      }
+      return { status: 'unavailable' };
     }
+
+    const data = toolResult.data as { content?: string };
+    if (typeof data?.content !== 'string') {
+      return { status: 'unavailable' };
+    }
+    return { status: 'found', content: data.content };
+  } catch {
     return { status: 'unavailable' };
   }
 }
@@ -329,6 +339,111 @@ export class UniversalEditorAgent extends BaseAgent {
       );
     }
 
+    // Optional live UE instrumentation check (feature-flagged)
+    if (
+      process.env.ENABLE_LIVE_UE === 'true' &&
+      !process.env.VITEST &&
+      process.env.NODE_ENV !== 'test'
+    ) {
+      const url = context.previewUrl || context.sourceUrl;
+      if (url && /^https?:\/\//i.test(url)) {
+        const { validateLiveUeInstrumentation } = await import('../live-ue-validation.js');
+        const live = await validateLiveUeInstrumentation(url);
+        context.evidence = context.evidence || [];
+        context.evidence.push(live.evidence);
+        context.log(live.evidence.summary, live.evidence.status === 'PASS' ? 'info' : 'warn');
+        if (live.evidence.status === 'FAIL') {
+          context.bugs.push({
+            id: `bug_ue_live_${Date.now()}`,
+            title: 'Live UE instrumentation missing',
+            severity: 'SERIOUS',
+            description: live.evidence.summary,
+          });
+        }
+
+        try {
+          const { getDatabase, persistUeAuthoringTestRows } = await import('@aeds/database');
+          const db = getDatabase();
+          await persistUeAuthoringTestRows(db, {
+            runId: context.runId,
+            pageUrl: url,
+            blockName: 'instrumentation',
+            phases: [
+              {
+                action: 'instrumentation',
+                status: live.evidence.status,
+                errorMessage: live.error,
+              },
+            ],
+          });
+        } catch (persistErr: unknown) {
+          context.log(
+            `ue_authoring_tests persist skipped: ${persistErr instanceof Error ? persistErr.message : String(persistErr)}`,
+            'warn',
+          );
+        }
+      } else {
+        context.evidence = context.evidence || [];
+        context.evidence.push({
+          id: `ev_ue_${Date.now()}`,
+          kind: 'other',
+          status: 'SKIPPED',
+          summary: 'Live UE SKIPPED — ENABLE_LIVE_UE=true but no preview/source URL',
+          producedAt: new Date().toISOString(),
+          mode: 'unavailable',
+        });
+      }
+    }
+
+    // Optional UE chrome SSO authoring cycle (edit→save→reopen) — never fakes PASS
+    if (
+      process.env.ENABLE_LIVE_UE_AUTHORING === 'true' &&
+      !process.env.VITEST &&
+      process.env.NODE_ENV !== 'test'
+    ) {
+      const { validateLiveUeAuthoringCycle } = await import('../live-ue-authoring.js');
+      const auth = await validateLiveUeAuthoringCycle({
+        contentPageUrl: context.sourceUrl || process.env.UE_CONTENT_PAGE_URL,
+        authorUrl: context.authorUrl || process.env.AEM_AUTHOR_URL,
+        aemPageId: context.aemPageId,
+      });
+      context.evidence = context.evidence || [];
+      context.evidence.push(auth.evidence);
+      context.log(auth.evidence.summary, auth.evidence.status === 'PASS' ? 'info' : 'warn');
+      if (auth.evidence.status === 'FAIL') {
+        context.bugs.push({
+          id: `bug_ue_authoring_${Date.now()}`,
+          title: 'Live UE authoring cycle failed',
+          severity: 'SERIOUS',
+          description: auth.evidence.summary,
+        });
+      }
+
+      const pageUrl = process.env.UE_EDITOR_URL || context.previewUrl || context.sourceUrl || 'unknown';
+      try {
+        const { getDatabase, persistUeAuthoringTestRows } = await import('@aeds/database');
+        const db = getDatabase();
+        const phaseKeys = ['open', 'edit', 'save', 'reopen', 'reopenContent'] as const;
+        await persistUeAuthoringTestRows(db, {
+          runId: context.runId,
+          pageUrl,
+          blockName: 'chrome-cycle',
+          phases: phaseKeys
+            .filter((action) => auth.phases[action] !== undefined)
+            .map((action) => ({
+              action,
+              status: String(auth.phases[action]),
+              errorMessage: auth.error,
+            })),
+        });
+      } catch (persistErr: unknown) {
+        context.log(
+          `ue_authoring_tests persist skipped: ${persistErr instanceof Error ? persistErr.message : String(persistErr)}`,
+          'warn',
+        );
+      }
+    }
+
     const decision = this.createDecision(
       context,
       'Generate Universal Editor authoring contracts',
@@ -336,6 +451,12 @@ export class UniversalEditorAgent extends BaseAgent {
         'Produce _component-definition.json with block categorization',
         'Produce _component-models.json with field definitions for generated blocks',
         sectionPlan,
+        process.env.ENABLE_LIVE_UE === 'true'
+          ? 'Live UE instrumentation validation (ENABLE_LIVE_UE)'
+          : 'Live UE validation skipped (set ENABLE_LIVE_UE=true)',
+        process.env.ENABLE_LIVE_UE_AUTHORING === 'true'
+          ? 'Live UE chrome authoring cycle (ENABLE_LIVE_UE_AUTHORING + UE_STORAGE_STATE_PATH)'
+          : 'Live UE chrome authoring skipped (set ENABLE_LIVE_UE_AUTHORING=true)',
       ],
       `Universal Editor schemas generated for ${createdBlocks.length} block(s).`,
     );

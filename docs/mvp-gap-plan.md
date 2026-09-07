@@ -2,36 +2,23 @@
 
 ## Verdict
 
-Evidence loop, workers, migrations, and reference docs are in place. Remaining focus: deeper tool wiring, live UE, and production auth rollout validation.
+Phase 8.14 migrates build + AEM preview onto the tool registry and strengthens UE content reopen for partial MCP trees. Core MVP evidence loop remains complete for the current scope.
 
-## Completed
+## Completed (through 8.14)
 
-### P0
-- Evidence-backed stages; no fake PASS
-- Browser worker fails loudly
-- Deployment agent fails on pre-push failure
-- LLMProvider contract + Azure/Ollama/compatible
-- EDSComponentIR + skills
-- Resume API
+- Evidence-backed pipeline, tools, evaluation, deployment approval
+- Usage + knowledge live APIs
+- Durable pending tool approvals
+- UE instrumentation + chrome authoring + tenant selectors
+- `executeTool` for analyzer/deployment/QA/visual/UE/build (+ optional `aem.previewPage`)
+- `/dashboard/ue` ← `GET /api/ue/authoring-tests` (no invented PASS)
+- Optional `reopenContent` via MCP/JCR (`UE_CONTENT_PAGE_URL`) with deep leaf scan + JCR fallback on partial MCP
 
-### P1 (this continuation)
-- Live Playwright + axe injection
-- Visual pixelmatch path + `visual-worker`
-- `build-worker` + `test-worker` (allowlisted commands)
-- Lighthouse adapter (`ENABLE_LIGHTHOUSE`, unavailable when not installed)
-- Cloud Manager adapter
-- Drizzle `0000_init_mvp` migrations
-- Production-oriented API auth (API secret / HS256 JWT)
-- Full `docs/` reference set (§64)
-
-## Remaining
+## Optional polish
 
 | Item | Status |
 |---|---|
-| Register production tools into `ToolRegistry` | 📋 |
-| Live Universal Editor browser authoring | 📋 |
-| Evaluation harness (§53) | 📋 P2 |
-| Knowledge/Usage dashboards live binding | 📋 P2 |
+| Broader allowlisted build cmds beyond artifact validate | 📋 Optional |
 
 ## Docs index
 

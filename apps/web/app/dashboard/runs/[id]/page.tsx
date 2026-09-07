@@ -261,6 +261,8 @@ export default function RunDetailPage() {
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [isApproved, setIsApproved] = useState(false);
   const [approvalLog, setApprovalLog] = useState<string | null>(null);
+  const [approvalBusy, setApprovalBusy] = useState(false);
+  const [approvalError, setApprovalError] = useState<string | null>(null);
   const [runStatus, setRunStatus] = useState<string>('LOADING');
   const [testFilter, setTestFilter] = useState<'all' | 'pass' | 'fail'>('all');
   const [project, setProject] = useState<any>(null);
@@ -355,19 +357,77 @@ export default function RunDetailPage() {
     };
   }, [rawId, loadRun, refreshKey]);
 
-  const handleApprove = () => {
-    setIsApproved(true);
-    setShowApprovalModal(false);
-    setApprovalLog(`Approved by engineer at ${new Date().toLocaleTimeString()} (Production deployment authorized)`);
+  const handleApprove = async (opts?: { mergePullRequest?: boolean }) => {
+    if (!liveRun?.id || runStatus !== 'WAITING_APPROVAL') return;
+    setApprovalBusy(true);
+    setApprovalError(null);
+    try {
+      const res = await fetch(`/api/backend/runs/${liveRun.id}/approve-deployment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mergePullRequest: opts?.mergePullRequest === true,
+          note: 'Approved from run detail UI',
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+      setIsApproved(true);
+      setShowApprovalModal(false);
+      setRunStatus('DEPLOYED');
+      setApprovalLog(
+        data?.mergeResult?.merged
+          ? `Approved and merged at ${new Date().toLocaleTimeString()} (PR merge confirmed)`
+          : `Approved at ${new Date().toLocaleTimeString()} (DEPLOYED; merge ${opts?.mergePullRequest ? 'attempted' : 'not requested'})`,
+      );
+      setRefreshKey((k) => k + 1);
+    } catch (err: unknown) {
+      setApprovalError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setApprovalBusy(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!liveRun?.id || runStatus !== 'WAITING_APPROVAL') return;
+    setApprovalBusy(true);
+    setApprovalError(null);
+    try {
+      const res = await fetch(`/api/backend/runs/${liveRun.id}/reject-deployment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'Rejected from run detail UI' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+      setShowApprovalModal(false);
+      setRunStatus('CANCELLED');
+      setApprovalLog(`Rejected at ${new Date().toLocaleTimeString()}`);
+      setRefreshKey((k) => k + 1);
+    } catch (err: unknown) {
+      setApprovalError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setApprovalBusy(false);
+    }
   };
 
   const handlePauseToggle = async () => {
     if (!liveRun?.id) return;
     const next = runStatus === 'PAUSED' ? 'resume' : 'pause';
-    // resume is not implemented on API — pause only for now
     if (next === 'pause') {
-      await fetch(`/api/backend/runs/${liveRun.id}/pause`, { method: 'POST' }).catch(() => null);
+      await fetch(`/api/backend/runs/${liveRun.id}/pause`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      }).catch(() => null);
       setRunStatus('PAUSED');
+    } else {
+      await fetch(`/api/backend/runs/${liveRun.id}/resume`, { method: 'POST' }).catch(() => null);
+      setRefreshKey((k) => k + 1);
     }
   };
 
@@ -1144,33 +1204,53 @@ export default function RunDetailPage() {
                 Production Deployment Safety Gate
               </div>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
-                Merges to production or AEM live publish require explicit human sign-off. AEM author publish is not auto-triggered yet (needs a working AEM bearer / IMS token exchange).
+                Only available when the run is <code>WAITING_APPROVAL</code>. Calls{' '}
+                <code>POST /api/runs/:id/approve-deployment</code> (or reject). Merge to GitHub only when explicitly requested and credentials allow — never invented.
               </p>
 
-              {isApproved ? (
+              {runStatus === 'DEPLOYED' || isApproved ? (
                 <div style={{ padding: '12px 16px', background: 'var(--color-success-dim)', border: '1px solid rgba(34, 197, 94, 0.3)', borderRadius: 'var(--radius-md)', color: 'var(--color-success)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <CheckCircle2 size={16} />
-                  <span>{approvalLog}</span>
+                  <span>{approvalLog || 'Deployment approved (DEPLOYED)'}</span>
                 </div>
-              ) : (
-                <div>
+              ) : runStatus === 'CANCELLED' && approvalLog ? (
+                <div style={{ padding: '12px 16px', background: 'var(--color-danger-dim, rgba(239,68,68,0.1))', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 'var(--radius-md)', color: 'var(--color-danger, #ef4444)', fontSize: '13px' }}>
+                  {approvalLog}
+                </div>
+              ) : runStatus === 'WAITING_APPROVAL' ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                   <button
                     onClick={() => setShowApprovalModal(true)}
+                    disabled={approvalBusy}
                     className="btn btn-primary btn-sm"
                     style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                   >
                     <Lock size={13} />
-                    <span>Approve Merge to Production</span>
+                    <span>Approve Deployment</span>
+                  </button>
+                  <button
+                    onClick={() => void handleReject()}
+                    disabled={approvalBusy}
+                    className="btn btn-secondary btn-sm"
+                  >
+                    Reject
                   </button>
                 </div>
+              ) : (
+                <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', margin: 0 }}>
+                  Gate unlocks when status is WAITING_APPROVAL (current: {runStatus}).
+                </p>
               )}
+              {approvalError ? (
+                <p style={{ fontSize: '12px', color: 'var(--color-danger, #ef4444)', margin: 0 }}>{approvalError}</p>
+              ) : null}
             </div>
           </div>
         </div>
 
       </div>
 
-      {/* Human Approval Gate Modal (TC-GATE-002) */}
+      {/* Human Approval Gate Modal */}
       {showApprovalModal && (
         <div
           style={{
@@ -1208,23 +1288,37 @@ export default function RunDetailPage() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
               <div>
-                <strong>Action: </strong>Approve merge when a real PR exists for <code>{repoName}</code> ({branchName})
+                <strong>Action: </strong>Record human approval for <code>{repoName}</code> ({branchName})
               </div>
               <div>
-                <strong>Scope: </strong>Deploy synthesized Franklin blocks to live Edge Delivery CDN
+                <strong>Evidence: </strong>Status moves WAITING_APPROVAL → DEPLOYED with an audit event. Optional GitHub merge only if requested.
               </div>
               <div>
                 <strong>Risk Level: </strong>
-                <span className="badge badge-warning" style={{ marginLeft: '6px' }}>LOW (Quality Gate 100% Passed)</span>
+                <span className="badge badge-warning" style={{ marginLeft: '6px' }}>HIGH (production gate)</span>
               </div>
+              {approvalError ? (
+                <div style={{ color: 'var(--color-danger, #ef4444)' }}>{approvalError}</div>
+              ) : null}
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button onClick={() => setShowApprovalModal(false)} className="btn btn-secondary btn-sm">
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
+              <button onClick={() => setShowApprovalModal(false)} className="btn btn-secondary btn-sm" disabled={approvalBusy}>
                 Cancel
               </button>
-              <button onClick={handleApprove} className="btn btn-primary btn-sm">
-                Confirm & Authorize Merge
+              <button
+                onClick={() => void handleApprove({ mergePullRequest: false })}
+                className="btn btn-secondary btn-sm"
+                disabled={approvalBusy}
+              >
+                Approve without merge
+              </button>
+              <button
+                onClick={() => void handleApprove({ mergePullRequest: true })}
+                className="btn btn-primary btn-sm"
+                disabled={approvalBusy}
+              >
+                {approvalBusy ? 'Working…' : 'Approve & merge PR'}
               </button>
             </div>
           </div>

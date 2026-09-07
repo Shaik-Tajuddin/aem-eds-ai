@@ -1,8 +1,8 @@
 import { Job } from 'bullmq';
 import { AgentRunJobData, AgentRunJobResult } from '@aeds/queue';
 import { AgentOrchestrator } from '@aeds/agent';
-import { getDatabase, agentRuns, agentEvents, pullRequests } from '@aeds/database';
-import { eq } from '@aeds/database';
+import { getDatabase, agentRuns, agentEvents, pullRequests, persistUsageFromAgentEvent, persistPendingToolApproval } from '@aeds/database';
+import { eq, and, notInArray } from '@aeds/database';
 
 export async function processAgentRunJob(
   job: Pick<Job<AgentRunJobData>, 'data' | 'updateProgress'>
@@ -58,6 +58,37 @@ export async function processAgentRunJob(
           data: payload,
         });
 
+        try {
+          await persistUsageFromAgentEvent(db, data.runId, String(type), payload);
+        } catch (usageErr) {
+          console.warn('[AgentWorker] Usage telemetry error:', usageErr);
+        }
+
+        if (String(type) === 'tool.approval_required' && typeof payload.callId === 'string') {
+          try {
+            await persistPendingToolApproval(db, {
+              callId: String(payload.callId),
+              toolName: String(payload.toolName || 'unknown'),
+              namespace: String(payload.namespace || 'unknown'),
+              riskLevel: String(payload.riskLevel || 'unknown'),
+              runId: data.runId,
+              projectId: data.projectId,
+              input:
+                typeof payload.input === 'object' && payload.input
+                  ? (payload.input as Record<string, unknown>)
+                  : {},
+              sanitizedInput:
+                typeof payload.sanitizedInput === 'object' && payload.sanitizedInput
+                  ? (payload.sanitizedInput as Record<string, unknown>)
+                  : {},
+              createdAt: String(payload.createdAt || new Date().toISOString()),
+              reason: typeof payload.reason === 'string' ? payload.reason : undefined,
+            });
+          } catch (pendErr) {
+            console.warn('[AgentWorker] Pending approval persist error:', pendErr);
+          }
+        }
+
         if (payload['status']) {
           await db
             .update(agentRuns)
@@ -70,7 +101,13 @@ export async function processAgentRunJob(
                   : step,
               updatedAt: new Date(),
             })
-            .where(eq(agentRuns.id, data.runId));
+            .where(
+              and(
+                eq(agentRuns.id, data.runId),
+                // Respect explicit pause/cancel — do not resurrect mid-flight
+                notInArray(agentRuns.status, ['PAUSED', 'CANCELLED'] as any),
+              ),
+            );
         }
       }
     } catch (err) {

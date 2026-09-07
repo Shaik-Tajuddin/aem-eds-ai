@@ -4,9 +4,10 @@
 // ============================================================
 
 import { RunStatus } from '@aeds/shared';
-import { GitHubAdapter, GitHubError, GitHubErrorCode, GitHubTokenManager } from '@aeds/github';
+import { GitHubError, GitHubTokenManager } from '@aeds/github';
 import { BaseAgent, type RunExecutionContext, type AgentExecutionResult } from './base.js';
 import { cleanupPublishWorkspace, preparePublishWorkspace } from '../publish-workspace.js';
+import { executeTool } from '../execute-tool.js';
 
 function shouldAttemptGitHubPublish(context: RunExecutionContext): boolean {
   if (context.skipGitHubPublish) return false;
@@ -101,72 +102,83 @@ export class DeploymentAgent extends BaseAgent {
         context.generatedFiles.set(file.path, file);
       }
 
-      const adapter = new GitHubAdapter({ auth: token });
-
-      try {
-        await adapter.createBranch(owner, repo, workBranch, baseBranch);
-        context.log(`Created branch ${workBranch} from ${baseBranch}`);
-      } catch (err: unknown) {
-        const code = err instanceof GitHubError ? err.code : undefined;
-        if (code === GitHubErrorCode.BRANCH_ALREADY_EXISTS || code === GitHubErrorCode.CONFLICT) {
+      const branchResult = await executeTool(context, 'github.createBranch', {
+        owner,
+        repo,
+        branch: workBranch,
+        baseBranch,
+      });
+      if (!branchResult.success) {
+        const msg = branchResult.error || 'createBranch failed';
+        const alreadyExists = /already exists|Reference already exists|conflict/i.test(msg);
+        if (alreadyExists) {
           context.log(`Branch ${workBranch} already exists — updating with new commit`);
         } else {
-          throw err;
+          throw new Error(msg);
         }
+      } else {
+        context.log(`Created branch ${workBranch} from ${baseBranch}`);
       }
 
       const files = prep.files.map((f) => ({
         path: f.path,
         content: f.content,
         operation: f.operation,
-        encoding: 'utf-8' as const,
       }));
 
-      const commit = await adapter.commitFiles(
+      const commitResult = await executeTool(context, 'github.commitFiles', {
         owner,
         repo,
-        workBranch,
-        `feat(aeds): autonomous EDS changes for run ${context.runId.slice(0, 8)}\n\nVerified with npm run build:json && npm run lint:fix`,
+        branch: workBranch,
+        message: `feat(aeds): autonomous EDS changes for run ${context.runId.slice(0, 8)}\n\nVerified with npm run build:json && npm run lint:fix`,
         files,
-      );
-      context.gitCommit = commit.sha;
+      });
+      if (!commitResult.success || !commitResult.data) {
+        throw new Error(commitResult.error || 'github.commitFiles failed');
+      }
+
+      const commitData = commitResult.data as { sha?: string };
+      const sha = commitData.sha || '';
+      context.gitCommit = sha;
       context.log(
-        `Committed ${files.length} file(s) after build:json + lint:fix → ${commit.sha.slice(0, 7)}`,
+        `Committed ${files.length} file(s) after build:json + lint:fix → ${sha.slice(0, 7) || 'unknown'}`,
       );
 
       let prUrl: string | undefined;
       let prNumber: number | undefined;
 
-      try {
-        const pr = await adapter.createPullRequest({
-          owner,
-          repo,
-          title: `feat(aeds): EDS pipeline run ${context.runId.slice(0, 8)}`,
-          headBranch: workBranch,
-          baseBranch,
-          body: [
-            `## AI EDS Developer — autonomous run`,
-            '',
-            `- **Run ID**: \`${context.runId}\``,
-            `- **Source**: ${context.sourceType}${context.sourceUrl ? ` (${context.sourceUrl})` : ''}`,
-            `- **Files**: ${prep.files.map((f) => `\`${f.path}\``).join(', ')}`,
-            '',
-            '### Pre-push checks',
-            '- `npm run build:json` ✅',
-            '- `npm run lint:fix` ✅',
-            '',
-            `Preview (after AEM rebuild): ${previewUrl}`,
-            '',
-            '### Notes',
-            '- Production merge / AEM live publish still requires human approval.',
-          ].join('\n'),
-          edsPreviewUrl: previewUrl,
-          labels: ['aeds', 'autonomous'],
-        });
+      const prResult = await executeTool(context, 'github.createPR', {
+        owner,
+        repo,
+        title: `feat(aeds): EDS pipeline run ${context.runId.slice(0, 8)}`,
+        head: workBranch,
+        base: baseBranch,
+        body: [
+          `## AI EDS Developer — autonomous run`,
+          '',
+          `- **Run ID**: \`${context.runId}\``,
+          `- **Source**: ${context.sourceType}${context.sourceUrl ? ` (${context.sourceUrl})` : ''}`,
+          `- **Files**: ${prep.files.map((f) => `\`${f.path}\``).join(', ')}`,
+          '',
+          '### Pre-push checks',
+          '- `npm run build:json` ✅',
+          '- `npm run lint:fix` ✅',
+          '',
+          `Preview (after AEM rebuild): ${previewUrl}`,
+          '',
+          '### Notes',
+          '- Production merge / AEM live publish still requires human approval.',
+        ].join('\n'),
+        edsPreviewUrl: previewUrl,
+        labels: ['aeds', 'autonomous'],
+      });
+
+      if (prResult.success && prResult.data) {
+        const pr = prResult.data as { url?: string; number?: number };
         prUrl = pr.url;
         prNumber = pr.number;
-      } catch (prErr: unknown) {
-        const msg = prErr instanceof Error ? prErr.message : String(prErr);
+      } else {
+        const msg = prResult.error || 'createPR failed';
         context.log(`PR create failed (${msg}); compare URL provided as fallback.`, 'warn');
         prUrl = `https://github.com/${owner}/${repo}/compare/${baseBranch}...${workBranch}?expand=1`;
       }
@@ -179,6 +191,51 @@ export class DeploymentAgent extends BaseAgent {
           : `GitHub publish complete. Review changes: ${prUrl}`,
       );
 
+      // Optional AEM preview publish via tool registry (never invent success)
+      if (
+        process.env.ENABLE_AEM_PREVIEW === 'true' &&
+        (context.authorUrl || process.env.AEM_AUTHOR_URL) &&
+        (context.sourceUrl || process.env.AEM_DEFAULT_AUTHORING_PATH)
+      ) {
+        const authorUrl = context.authorUrl || process.env.AEM_AUTHOR_URL || '';
+        const pagePath =
+          (process.env.AEM_DEFAULT_AUTHORING_PATH || '').trim() ||
+          (() => {
+            const src = (context.sourceUrl || '').trim();
+            if (src.startsWith('/')) return src;
+            try {
+              return new URL(src).pathname;
+            } catch {
+              return '';
+            }
+          })();
+
+        if (authorUrl && pagePath) {
+          const previewResult = await executeTool(context, 'aem.previewPage', {
+            authorUrl,
+            path: pagePath,
+            previewUrl: context.previewUrl,
+          });
+          context.evidence = context.evidence || [];
+          context.evidence.push({
+            id: `ev_aem_preview_${Date.now()}`,
+            kind: 'other',
+            status: previewResult.success ? 'PASS' : 'FAIL',
+            summary: previewResult.success
+              ? `AEM previewPage OK for ${pagePath}`
+              : `AEM previewPage FAIL: ${previewResult.error || 'unknown'}`,
+            producedAt: new Date().toISOString(),
+            mode: previewResult.success ? 'live' : 'unavailable',
+          });
+          context.log(
+            previewResult.success
+              ? `AEM preview requested for ${pagePath}`
+              : `AEM preview failed: ${previewResult.error}`,
+            previewResult.success ? 'info' : 'warn',
+          );
+        }
+      }
+
       return {
         success: true,
         decision,
@@ -186,12 +243,14 @@ export class DeploymentAgent extends BaseAgent {
       };
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      context.log(`GitHub publish failed (pipeline continues to WAITING_APPROVAL): ${message}`, 'error');
+      const ghMsg =
+        err instanceof GitHubError ? err.message : message;
+      context.log(`GitHub publish failed (pipeline continues to WAITING_APPROVAL): ${ghMsg}`, 'error');
       return {
         success: true,
         decision,
         filesGenerated: fileList,
-        error: message,
+        error: ghMsg,
       };
     } finally {
       await cleanupPublishWorkspace(workDir);

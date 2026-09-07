@@ -39,5 +39,8 @@ export type Database = ReturnType<typeof getDatabase>;
 export { schema };
 export * from './schema/index.js';
 export * from './types.js';
+export * from './usage-telemetry.js';
+export * from './pending-approvals.js';
+export * from './ue-authoring-persist.js';
 export * from 'drizzle-orm';
 

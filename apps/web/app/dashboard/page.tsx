@@ -9,16 +9,17 @@ import { ActiveRunsSection } from '../../components/dashboard/ActiveRunsSection'
 import { ProjectsGrid } from '../../components/dashboard/ProjectsGrid';
 import { ActivityTimeline } from '../../components/dashboard/ActivityTimeline';
 import { useProjects } from '../../lib/project-store';
-import { isTerminalRunStatus, POLL_ACTIVE_MS, POLL_IDLE_MS } from '../../lib/utils';
+import { isActiveRunStatus, POLL_ACTIVE_MS, POLL_IDLE_MS } from '../../lib/utils';
 
 export default function OverviewPage() {
   const { projects } = useProjects();
   const [liveRuns, setLiveRuns] = useState<any[]>([]);
+  const [pausingAll, setPausingAll] = useState(false);
   const delayRef = useRef(POLL_ACTIVE_MS);
 
   const loadRuns = useCallback(async (): Promise<boolean> => {
     try {
-      const r = await fetch('/api/backend/runs');
+      const r = await fetch('/api/backend/runs?limit=200');
       const data = await r.json();
       if (data && Array.isArray(data.runs)) {
         const mapped = data.runs.map((run: any) => {
@@ -27,16 +28,19 @@ export default function OverviewPage() {
             progressRaw <= 1 && progressRaw > 0
               ? Math.round(progressRaw * 100)
               : Math.round(progressRaw);
-          const isActive = !isTerminalRunStatus(run.status);
+          const rawStatus = String(run.status || '');
+          const isActive = isActiveRunStatus(rawStatus);
           return {
             id: run.id,
             projectId: run.projectId,
             projectName: run.projectName || 'EDS Project',
             status: isActive
               ? 'RUNNING'
-              : run.status === 'FAILED' || run.status === 'CANCELLED'
-                ? 'FAILED'
-                : 'PASSED',
+              : rawStatus === 'PAUSED'
+                ? 'PAUSED'
+                : rawStatus === 'FAILED' || rawStatus === 'CANCELLED'
+                  ? 'FAILED'
+                  : 'PASSED',
             source: run.source || 'EXISTING_WEBSITE',
             currentStage: run.currentStage || run.status || '—',
             stageIndex: Math.max(1, Math.round((progress / 100) * 13)),
@@ -59,6 +63,31 @@ export default function OverviewPage() {
     }
     return false;
   }, []);
+
+  const handlePauseAll = useCallback(async () => {
+    if (pausingAll) return;
+    const activeCount = liveRuns.filter((r) => r.status === 'RUNNING').length;
+    if (activeCount === 0) {
+      alert('No active agent runs to pause.');
+      return;
+    }
+    if (!window.confirm(`Pause all ${activeCount} active agent run(s)?`)) return;
+    setPausingAll(true);
+    try {
+      const res = await fetch('/api/backend/runs/pause-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+      await loadRuns();
+    } catch (err: any) {
+      alert(`Pause all failed: ${err?.message || 'Unknown error'}`);
+    } finally {
+      setPausingAll(false);
+    }
+  }, [pausingAll, liveRuns, loadRuns]);
 
   useEffect(() => {
     let cancelled = false;
@@ -155,7 +184,11 @@ export default function OverviewPage() {
         </div>
 
         {/* Active Agent Runs */}
-        <ActiveRunsSection runs={liveRuns.filter((r) => r.status === 'RUNNING') as any} />
+        <ActiveRunsSection
+          runs={liveRuns.filter((r) => r.status === 'RUNNING') as any}
+          onPauseAll={() => void handlePauseAll()}
+          pausingAll={pausingAll}
+        />
 
         {/* KPI Strip */}
         <KPIStrip items={kpiItems} />
@@ -173,13 +206,18 @@ export default function OverviewPage() {
           <ActivityTimeline
             events={liveRuns.map((r) => ({
               id: `act-${r.id}`,
-              timestamp: 'Recently',
+              timestamp: r.startedAt || new Date().toISOString(),
               type: 'code',
               aiGenerated: true,
               title: `Agent pipeline executed for ${r.projectName}`,
               runId: r.id,
               project: r.projectName,
-              status: r.status === 'FAILED' ? 'error' : ('success' as const),
+              status:
+                r.status === 'FAILED'
+                  ? 'error'
+                  : r.status === 'PAUSED'
+                    ? ('warning' as const)
+                    : ('success' as const),
             }))}
           />
         </div>

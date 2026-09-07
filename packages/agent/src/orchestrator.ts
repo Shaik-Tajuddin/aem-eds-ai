@@ -23,6 +23,7 @@ import {
   PerformanceAgent,
   QualityGateAgent,
 } from './agents/validation-agents.js';
+import { createDefaultToolRegistry } from './create-tool-registry.js';
 import {
   PIPELINE_STAGE_ORDER,
   PIPELINE_STAGE_LABELS,
@@ -100,7 +101,7 @@ export class AgentOrchestrator {
   constructor(runId: string, llmGateway?: LLMGateway, toolRegistry?: ToolRegistry, maxFixIterations = 5) {
     this.stateMachine = new RunStateMachine(runId, RunStatus.RECEIVED, maxFixIterations);
     this.llmGateway = llmGateway || createLlmGatewayFromEnv();
-    this.toolRegistry = toolRegistry || new ToolRegistry();
+    this.toolRegistry = toolRegistry || createDefaultToolRegistry();
 
     // Register phase handlers
     this.registerAgent(new ProjectAnalyzerAgent());

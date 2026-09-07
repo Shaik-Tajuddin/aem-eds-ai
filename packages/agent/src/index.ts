@@ -43,3 +43,12 @@ export {
   buildAuthoringPageUrl,
 } from './reference-capture.js';
 export type { ReferenceSnapshot, ReferenceCaptureOptions } from './reference-capture.js';
+export { createDefaultToolRegistry, listDefaultToolNames } from './create-tool-registry.js';
+export { executeTool } from './execute-tool.js';
+export { validateLiveUeInstrumentation } from './live-ue-validation.js';
+export type { LiveUeValidationResult } from './live-ue-validation.js';
+export { validateLiveUeAuthoringCycle } from './live-ue-authoring.js';
+export type { LiveUeAuthoringResult } from './live-ue-authoring.js';
+export { verifyUeReopenViaContent } from './ue-reopen-content.js';
+export type { UeContentReopenResult, ContentReopenStatus } from './ue-reopen-content.js';
+export { DeploymentAgent } from './agents/deployment-agent.js';

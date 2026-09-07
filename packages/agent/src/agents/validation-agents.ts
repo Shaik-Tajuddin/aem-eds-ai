@@ -6,8 +6,8 @@
 import { RunStatus, type SystemEvidence } from '@aeds/shared';
 import { auditHtmlStatic } from '@aeds/accessibility';
 import { auditAssetBudgets } from '@aeds/performance';
-import { VisualComparator } from '@aeds/visual';
 import { BaseAgent, type RunExecutionContext, type AgentExecutionResult } from './base.js';
+import { executeTool } from '../execute-tool.js';
 
 function evidence(
   kind: SystemEvidence['kind'],
@@ -137,17 +137,35 @@ export class VisualValidationAgent extends BaseAgent {
     }
 
     const candidateBuf = Buffer.from(candidateB64, 'base64');
-    const comparator = new VisualComparator();
-    const result = await comparator.compare(baselineBuf, candidateBuf, {
+    const toolResult = await executeTool(context, 'visual.compare', {
+      baselineBase64: baselineBuf.toString('base64'),
+      candidateBase64: candidateBuf.toString('base64'),
       threshold,
-      generateDiffImage: true,
     });
+
+    if (!toolResult.success || !toolResult.data) {
+      const ev = evidence(
+        'visual',
+        'UNAVAILABLE',
+        `visual.compare tool failed: ${toolResult.error || 'unknown'}`,
+        'unavailable',
+      );
+      pushEvidence(context, ev);
+      return { success: true, decision: this.createDecision(context, 'Visual validation', [], ev.summary) };
+    }
+
+    const result = toolResult.data as {
+      passed: boolean;
+      score: number;
+      diffPixels: number;
+      diffPercentage: number;
+    };
 
     const status = result.passed ? 'PASS' : 'FAIL';
     const ev = evidence(
       'visual',
       status,
-      `Visual score ${result.score}% (threshold ${threshold}%) — ${status}`,
+      `Visual score ${result.score}% (threshold ${threshold}%) — ${status} (via tool registry)`,
       'live',
       {
         score: result.score,
@@ -173,7 +191,7 @@ export class VisualValidationAgent extends BaseAgent {
       decision: this.createDecision(
         context,
         'Visual validation',
-        [`pixelmatch score=${result.score}`, `threshold=${threshold}`],
+        [`visual.compare score=${result.score}`, `threshold=${threshold}`],
         ev.summary,
       ),
     };

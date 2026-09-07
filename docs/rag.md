@@ -37,6 +37,14 @@ Source metadata (product, version, path, topic) is required. Old docs are not au
 
 `KnowledgeChunk`: id, source, product, version, projectId?, path?, topic, content, embedding.
 
+## API
+
+| Endpoint | Behavior |
+|---|---|
+| `POST /api/knowledge` | Prefer `KnowledgeIndexer`; falls back to document-only insert if embed/index fails |
+| `POST /api/knowledge/search` | Prefer RAG retrieve; keyword fallback labeled `keyword_fallback` when empty/unavailable |
+| `GET /api/usage` | Aggregates persisted `llm_calls` / `tool_calls` (honest zeros when empty) |
+
 ## Ops
 
 - Enable extension: `docker/postgres/init.sql` (`CREATE EXTENSION vector`)

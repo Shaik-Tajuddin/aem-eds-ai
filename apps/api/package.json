@@ -23,6 +23,8 @@
     "@aeds/queue": "*",
     "@aeds/shared": "*",
     "@aeds/tools": "*",
+    "@aeds/evaluation": "*",
+    "@aeds/rag": "*",
     "@fastify/cors": "^10.1.0",
 
     "@fastify/helmet": "^13.0.1",

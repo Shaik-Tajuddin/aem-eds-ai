@@ -418,6 +418,37 @@ ${options.visualRegressionPassed !== undefined ? `- **Visual Regression Check**:
   }
 
   /**
+   * Merges a pull request (critical — requires human approval in tool policy).
+   * Fails loudly when GitHub rejects the merge; never invents success.
+   */
+  public async mergePullRequest(
+    owner: string,
+    repo: string,
+    pullNumber: number,
+    options?: { commitTitle?: string; commitMessage?: string; mergeMethod?: 'merge' | 'squash' | 'rebase' },
+  ): Promise<{ merged: boolean; sha?: string; message: string; url?: string }> {
+    try {
+      const { data } = await this.octokit.rest.pulls.merge({
+        owner,
+        repo,
+        pull_number: pullNumber,
+        commit_title: options?.commitTitle,
+        commit_message: options?.commitMessage,
+        merge_method: options?.mergeMethod || 'squash',
+      });
+
+      return {
+        merged: Boolean(data.merged),
+        sha: data.sha,
+        message: data.message || (data.merged ? 'Pull request merged' : 'Merge not completed'),
+        url: `https://github.com/${owner}/${repo}/pull/${pullNumber}`,
+      };
+    } catch (err: any) {
+      throw GitHubError.fromError(err);
+    }
+  }
+
+  /**
    * Retrieves pull request details
    */
   public async getPullRequest(owner: string, repo: string, pullNumber: number): Promise<GitHubPRResult> {

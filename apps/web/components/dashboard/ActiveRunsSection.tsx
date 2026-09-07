@@ -7,9 +7,11 @@ import { formatDuration } from '../../lib/utils';
 
 interface ActiveRunsSectionProps {
   runs: RunSummary[];
+  onPauseAll?: () => void;
+  pausingAll?: boolean;
 }
 
-export function ActiveRunsSection({ runs }: ActiveRunsSectionProps) {
+export function ActiveRunsSection({ runs, onPauseAll, pausingAll }: ActiveRunsSectionProps) {
   return (
     <section id="active-agent-runs">
       <div
@@ -48,9 +50,25 @@ export function ActiveRunsSection({ runs }: ActiveRunsSectionProps) {
           </span>
         </div>
 
-        <Link href="/dashboard/runs" className="btn btn-ghost btn-sm">
-          View all runs
-        </Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {onPauseAll && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={onPauseAll}
+              disabled={pausingAll || runs.length === 0}
+              title="Pause all in-progress agent runs"
+              style={{
+                color: runs.length === 0 ? 'var(--text-tertiary)' : 'var(--color-warning, #d97706)',
+              }}
+            >
+              {pausingAll ? 'Pausing…' : 'Pause All'}
+            </button>
+          )}
+          <Link href="/dashboard/runs" className="btn btn-ghost btn-sm">
+            View all runs
+          </Link>
+        </div>
       </div>
 
       <div

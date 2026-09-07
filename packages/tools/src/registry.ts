@@ -18,9 +18,24 @@ export interface RegisteredTool {
   handler: ToolHandler;
 }
 
+/** Serializable pending approval (safe to persist; input may still contain non-secret params). */
+export interface PendingToolApproval {
+  callId: string;
+  toolName: string;
+  namespace: string;
+  riskLevel: string;
+  runId: string;
+  projectId: string;
+  input: Record<string, unknown>;
+  sanitizedInput: Record<string, unknown>;
+  createdAt: string;
+  reason?: string;
+}
+
 export class ToolRegistry {
   private tools: Map<string, RegisteredTool> = new Map();
   private policyEngine: ToolPolicyEngine = new ToolPolicyEngine();
+  private pendingApprovals: Map<string, PendingToolApproval> = new Map();
 
   public register<TInput, TOutput>(
     definition: ToolDefinition,
@@ -41,6 +56,110 @@ export class ToolRegistry {
       }
     }
     return list;
+  }
+
+  public getPendingApproval(callId: string): PendingToolApproval | undefined {
+    return this.pendingApprovals.get(callId);
+  }
+
+  public listPendingApprovals(runId?: string): PendingToolApproval[] {
+    const all = Array.from(this.pendingApprovals.values());
+    return runId ? all.filter((p) => p.runId === runId) : all;
+  }
+
+  /** Restore a pending approval (e.g. from DB / state_snapshot) so approveAndExecute can run. */
+  public restorePendingApproval(pending: PendingToolApproval): void {
+    this.pendingApprovals.set(pending.callId, pending);
+  }
+
+  /**
+   * Human denied a pending tool call. Does not invent success.
+   */
+  public denyPending(callId: string, reason = 'Denied by human reviewer'): {
+    result: ToolResult;
+    record: ToolCall;
+  } {
+    const pending = this.pendingApprovals.get(callId);
+    if (!pending) {
+      return {
+        result: { success: false, error: `No pending approval for callId "${callId}"` },
+        record: {
+          id: callId,
+          runId: 'unknown',
+          toolName: 'unknown',
+          namespace: 'unknown',
+          status: ToolStatus.FAILED,
+          riskLevel: 'unknown',
+          sanitizedInput: {},
+          error: `No pending approval for callId "${callId}"`,
+          timestamp: new Date().toISOString(),
+          durationMs: 0,
+        },
+      };
+    }
+
+    this.pendingApprovals.delete(callId);
+    const record: ToolCall = {
+      id: callId,
+      runId: pending.runId,
+      toolName: pending.toolName,
+      namespace: pending.namespace,
+      status: ToolStatus.DENIED,
+      riskLevel: pending.riskLevel,
+      sanitizedInput: pending.sanitizedInput,
+      error: reason,
+      timestamp: new Date().toISOString(),
+      durationMs: 0,
+    };
+    return {
+      result: { success: false, error: reason, errorClass: 'DENIED' },
+      record,
+    };
+  }
+
+  /**
+   * Complete a pending approval by re-executing with forceApprove.
+   */
+  public async approveAndExecute(
+    callId: string,
+    approvedBy?: string,
+  ): Promise<{ result: ToolResult; record: ToolCall }> {
+    const pending = this.pendingApprovals.get(callId);
+    if (!pending) {
+      return {
+        result: { success: false, error: `No pending approval for callId "${callId}"` },
+        record: {
+          id: callId,
+          runId: 'unknown',
+          toolName: 'unknown',
+          namespace: 'unknown',
+          status: ToolStatus.FAILED,
+          riskLevel: 'unknown',
+          sanitizedInput: {},
+          error: `No pending approval for callId "${callId}"`,
+          timestamp: new Date().toISOString(),
+          durationMs: 0,
+        },
+      };
+    }
+
+    this.pendingApprovals.delete(callId);
+    const { result, record } = await this.execute(pending.toolName, pending.input, {
+      runId: pending.runId,
+      projectId: pending.projectId,
+      forceApprove: true,
+    });
+
+    if (approvedBy && result.success) {
+      record.sanitizedOutput = {
+        ...(typeof record.sanitizedOutput === 'object' && record.sanitizedOutput
+          ? (record.sanitizedOutput as Record<string, unknown>)
+          : {}),
+        approvedBy,
+      };
+    }
+
+    return { result, record };
   }
 
   /**
@@ -101,6 +220,21 @@ export class ToolRegistry {
 
     // 2. Check if human approval is required
     if (policyResult.requiresHumanApproval) {
+      const sanitizedInput = sanitizeValue(rawInput) as Record<string, unknown>;
+      const pending: PendingToolApproval = {
+        callId,
+        toolName,
+        namespace: tool.definition.namespace,
+        riskLevel: tool.definition.riskLevel,
+        runId: context.runId,
+        projectId: context.projectId,
+        input: rawInput,
+        sanitizedInput,
+        createdAt: timestamp,
+        reason: policyResult.reason,
+      };
+      this.pendingApprovals.set(callId, pending);
+
       const record: ToolCall = {
         id: callId,
         runId: context.runId,
@@ -108,7 +242,7 @@ export class ToolRegistry {
         namespace: tool.definition.namespace,
         status: ToolStatus.PENDING,
         riskLevel: tool.definition.riskLevel,
-        sanitizedInput: sanitizeValue(rawInput) as Record<string, unknown>,
+        sanitizedInput,
         timestamp,
         durationMs: 0,
       };
@@ -117,6 +251,7 @@ export class ToolRegistry {
           success: false,
           error: 'ACTION_REQUIRED: Tool execution requires human approval before proceeding',
           errorClass: 'APPROVAL_REQUIRED',
+          data: { callId, toolName },
         },
         record,
       };
@@ -132,7 +267,7 @@ export class ToolRegistry {
         projectId: context.projectId,
       });
 
-      let timeoutHandle: any;
+      let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
       const timeoutPromise = new Promise((_, reject) => {
         timeoutHandle = setTimeout(() => {
           const timeoutErr = new Error(`Tool execution timed out after ${timeoutMs}ms`);
@@ -142,7 +277,7 @@ export class ToolRegistry {
       });
 
       const output = await Promise.race([executionPromise, timeoutPromise]);
-      clearTimeout(timeoutHandle);
+      if (timeoutHandle) clearTimeout(timeoutHandle);
       const durationMs = Date.now() - startTime;
 
       const record: ToolCall = {
@@ -185,4 +320,3 @@ export class ToolRegistry {
     }
   }
 }
-

@@ -6,6 +6,7 @@
 import { RunStatus } from '@aeds/shared';
 import { BaseAgent, type RunExecutionContext, type AgentExecutionResult } from './base.js';
 import { captureReferencePage } from '../reference-capture.js';
+import { executeTool } from '../execute-tool.js';
 
 export class ProjectAnalyzerAgent extends BaseAgent {
   public readonly id = 'agent-project-analyzer';
@@ -15,6 +16,24 @@ export class ProjectAnalyzerAgent extends BaseAgent {
 
   public async execute(context: RunExecutionContext): Promise<AgentExecutionResult> {
     context.log(`Analyzing EDS project ${context.repoOwner}/${context.repoName}...`);
+
+    // Prefer ToolRegistry for GitHub metadata when token is available
+    if (!process.env.VITEST && process.env.NODE_ENV !== 'test') {
+      try {
+        const toolResult = await executeTool(context, 'github.getRepository', {
+          owner: context.repoOwner,
+          repo: context.repoName,
+        });
+        if (toolResult.success && toolResult.data) {
+          context.log(`Tool github.getRepository OK for ${context.repoOwner}/${context.repoName}`);
+        }
+      } catch (err: unknown) {
+        context.log(
+          `Tool github.getRepository skipped/failed: ${err instanceof Error ? err.message : String(err)}`,
+          'warn',
+        );
+      }
+    }
 
     const fallbackBlocks = ['hero', 'columns', 'cards'];
 

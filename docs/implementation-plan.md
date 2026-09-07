@@ -80,12 +80,52 @@ This document contains the engineering blueprint and phased execution roadmap fo
 - `CloudManagerClient` adapter behind `ENABLE_CLOUD_MANAGER`.
 - Drizzle migration `0000_init_mvp.sql` (+ mirrored under `database/migrations/`).
 
-### Phase 8.7 — Build/Test Workers, Lighthouse, Auth, Reference Docs 🚀 (Current)
+### Phase 8.7 — Build/Test Workers, Lighthouse, Auth, Reference Docs ✅
 - `workers/build-worker` + `workers/test-worker` with allowlisted command runner.
 - Queues: `build-jobs`, `test-jobs`.
 - `runLighthouseAudit` in `@aeds/performance` (feature-flagged; unavailable without packages).
 - API auth: production requires `API_SECRET_KEY` Bearer or HS256 JWT (`NEXTAUTH_SECRET`).
 - Full §64 documentation set under `docs/` (see `docs/README.md`).
+
+### Phase 8.8 — Tool Catalog, Live UE Instrumentation, Evaluation ✅
+- `createDefaultToolRegistry()` wires GitHub/Browser/Visual/Figma/AEM/testing tools.
+- Orchestrator uses populated registry by default; `executeTool` helper.
+- Project Analyzer + Deployment Agent publish path use registry tools.
+- High-risk auto-approve for trusted agent context; critical tools still gated.
+- `ENABLE_LIVE_UE` → Playwright `data-aue-*` instrumentation evidence.
+- `@aeds/evaluation` benchmark tasks + scoring from system evidence.
+- API: `GET /api/tools`, evaluation list/score endpoints.
+
+### Phase 8.9 — Human Approval Completion ✅
+- `POST /api/runs/:id/approve-deployment` / `reject-deployment` with system evidence events.
+- Optional GitHub merge via critical `github.mergePR` when `mergePullRequest=true` (honors `ENABLE_GITHUB_MERGE`).
+- `forceApprove` policy + `ToolRegistry.approveAndExecute` / `POST /api/tools/execute-approved`.
+- Run detail UI calls real APIs; UE dashboard no longer invents PASS.
+
+### Phase 8.10 — Usage / Knowledge Live Binding + UE Authoring Gate ✅
+- Persist LLM/tool telemetry into `llm_calls` / `tool_calls`; `GET /api/usage`.
+- Usage dashboard reads live aggregates (zeros when empty — no invented spend).
+- Knowledge `POST /search` + indexer-aware ingest; UI prefers live results.
+- `ENABLE_LIVE_UE_AUTHORING` + Playwright `UE_STORAGE_STATE_PATH` authoring cycle (UNAVAILABLE without session).
+
+### Phase 8.11 — Durable Tool Approvals + UE Authoring Persistence ✅
+- Pending tool approvals survive restart via `agent_runs.state_snapshot.pendingToolApprovals`.
+- Approve/deny APIs restore and complete or deny pending calls with evidence events.
+- Live UE paths write `ue_authoring_tests`; exposed on `GET /api/runs/:id`.
+
+### Phase 8.12 — executeTool Migration + UE Selector Config ✅
+- QA live browser, visual compare, and UE GitHub file reads go through ToolRegistry.
+- Tenant UE chrome selectors via env (`UE_FIELD_SELECTOR`, `UE_SAVE_SELECTOR`, `UE_CHROME_SELECTOR`, `UE_LOGIN_HINTS`).
+
+### Phase 8.13 — UE Dashboard Live Binding + Content Reopen ✅
+- `GET /api/ue/authoring-tests` aggregates `ue_authoring_tests` for the dashboard.
+- `/dashboard/ue` shows live PASS/FAIL/UNAVAILABLE only from DB evidence.
+- Optional MCP/JCR reopen content verify (`verifyUeReopenViaContent`, `UE_CONTENT_PAGE_URL`).
+
+### Phase 8.14 — Build Tool + AEM Preview + Deep Reopen ✅
+- `build.validateArtifacts` tool; BuildValidationAgent uses shared validator (+ tool outside tests).
+- Optional post-PR `aem.previewPage` when `ENABLE_AEM_PREVIEW=true` (evidence PASS/FAIL only from tool result).
+- UE reopen: recursive string-leaf + JSON scan; partial/empty MCP falls through to JCR before FAIL/UNAVAILABLE.
 
 ### Phase 9 — Figma REST Client & Design IR Converter 📋
 - `@aeds/figma`: Figma REST API integration.
@@ -96,4 +136,4 @@ This document contains the engineering blueprint and phased execution roadmap fo
 
 ### Phase 11 — Distributed BullMQ Queue Workers 📋
 - Out-of-process job execution workers in `workers/` for long-running agent orchestration and browser audits.
-- Still needed: dedicated `build-worker`, `test-worker`, `visual-worker`.
+- Partial: `build-worker`, `test-worker`, `visual-worker`, `browser-worker` exist; expand coverage and orchestration jobs.

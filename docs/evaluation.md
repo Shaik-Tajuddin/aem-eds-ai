@@ -1,35 +1,37 @@
 # Evaluation
 
-## Today (implemented)
+Package: `@aeds/evaluation`
 
-- **Quality gate agent** aggregates system evidence (build, browser, visual, a11y, performance)
-- **Self-healing loop** scores progress via bug resolution and regression
-- **LLM cost/latency** records for usage dashboards
-- **Run comparison UI** (`/dashboard/runs/compare`) for side-by-side runs
-- **Unit/integration Vitest suites** across packages
+## Purpose
 
-## Planned (Master Prompt §53)
+Score agent runs against benchmark tasks using **system evidence only**. SKIPPED/UNAVAILABLE never count as full PASS.
 
-Benchmark tasks such as:
+## Benchmark tasks
 
-- Create Hero / Product Grid / Carousel with UE
-- Convert website or screenshot to EDS
-- Fix visual mismatch / UE authoring / JS error
-- Improve a11y / performance
-- Refactor existing block
+See `listBenchmarkTasks()` — includes create-hero, product grid, carousel+UE, convert website/screenshot, fix visual/UE/JS, improve a11y/perf, refactor block.
 
-Score dimensions: Architecture, Code, EDS Convention, UE, Build, Tests, Accessibility, Performance, Visual, Regression.
+## Dimensions
 
-Dataset folders (future): `dataset/architecture|coding|universal-editor|debugging|visual|testing/`.
+architecture · code · edsConvention · universalEditor · build · tests · accessibility · performance · visual · regression
 
-## Training strategy
+## API
 
-Do **not** fine-tune initially. Prefer:
+```ts
+import { scoreEvaluationRun, listBenchmarkTasks } from '@aeds/evaluation';
 
-Base LLM + RAG + Skills + Project Context + Tools + Engineering IR + Automated Validation
+const result = scoreEvaluationRun({
+  taskId: 'create-hero',
+  runId: '…',
+  evidence: [{ kind: 'build', status: 'PASS', summary: '…' }],
+  bugsOpen: 0,
+});
+```
 
-Only approved, rights-cleared examples become high-confidence knowledge.
+HTTP:
 
-## Honesty
+- `GET /api/tools/evaluation/tasks`
+- `POST /api/tools/evaluation/score`
 
-`npm run demo` is simulated. Evaluation claims require real tool evidence and human-approved labels where applicable.
+## Dataset (future)
+
+`dataset/architecture|coding|universal-editor|debugging|visual|testing/` — store only rights-cleared, human-approved examples.

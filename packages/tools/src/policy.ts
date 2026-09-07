@@ -9,7 +9,11 @@ export interface PolicyEvaluationContext {
   projectId: string;
   runId: string;
   userRole?: 'admin' | 'developer' | 'viewer';
+  /** Trusted agent pipeline may auto-approve high-risk (non-critical) tools. */
+  autoApproveHighRisk?: boolean;
   autoApproveMediumRisk?: boolean;
+  /** Human already approved this specific invocation (completion path). */
+  forceApprove?: boolean;
 }
 
 export interface PolicyResult {
@@ -33,7 +37,12 @@ export class ToolPolicyEngine {
       };
     }
 
-    // 2. Critical risk always requires human approval or admin role
+    // Already human-approved invocations skip the gate (completion API).
+    if (context.forceApprove) {
+      return { allowed: true, requiresHumanApproval: false };
+    }
+
+    // 2. Explicit approval flag or critical risk always requires human approval
     if (tool.riskLevel === 'critical' || tool.requiresApproval) {
       return {
         allowed: true,
@@ -42,8 +51,8 @@ export class ToolPolicyEngine {
       };
     }
 
-    // 3. High risk requires approval unless explicitly auto-approved
-    if (tool.riskLevel === 'high') {
+    // 3. High risk requires confirmation unless the trusted agent pipeline opts in
+    if (tool.riskLevel === 'high' && !context.autoApproveHighRisk) {
       return {
         allowed: true,
         requiresHumanApproval: true,
@@ -51,7 +60,7 @@ export class ToolPolicyEngine {
       };
     }
 
-    // 4. Low and medium risk
+    // 4. Low / medium / auto-approved high risk
     return {
       allowed: true,
       requiresHumanApproval: false,

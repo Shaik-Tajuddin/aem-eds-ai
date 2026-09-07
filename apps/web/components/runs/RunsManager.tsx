@@ -142,6 +142,7 @@ export function RunsManager() {
   const [selectedRun, setSelectedRun] = useState<RunItem | null>(null);
   const [isNewRunModalOpen, setIsNewRunModalOpen] = useState(false);
   const [rerunningId, setRerunningId] = useState<string | null>(null);
+  const [pausingAll, setPausingAll] = useState(false);
   const delayRef = useRef(POLL_ACTIVE_MS);
 
   const loadRuns = useCallback(async (): Promise<boolean> => {
@@ -184,16 +185,54 @@ export function RunsManager() {
     return true;
   });
 
-  const togglePause = (id: string) => {
-    setRuns((prev) =>
-      prev.map((r) => {
-        if (r.id === id) {
-          const nextStatus = r.status === 'PAUSED' ? 'IMPLEMENTING' : 'PAUSED';
-          return { ...r, status: nextStatus };
-        }
-        return r;
-      })
-    );
+  const togglePause = async (id: string) => {
+    const run = runs.find((r) => r.id === id);
+    if (!run) return;
+    if (run.status === 'PAUSED') {
+      await fetch(`/api/backend/runs/${id}/resume`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      }).catch(() => null);
+    } else {
+      await fetch(`/api/backend/runs/${id}/pause`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      }).catch(() => null);
+    }
+    await loadRuns();
+  };
+
+  const handlePauseAll = async () => {
+    if (pausingAll) return;
+    const activeCount = runs.filter(
+      (r) => r.status === 'ANALYZING' || r.status === 'IMPLEMENTING' || r.status === 'QUALITY_GATE',
+    ).length;
+    if (activeCount === 0) {
+      alert('No active agent runs to pause.');
+      return;
+    }
+    if (!window.confirm(`Pause all ${activeCount} active agent run(s)?`)) return;
+
+    setPausingAll(true);
+    try {
+      const res = await fetch('/api/backend/runs/pause-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+      await loadRuns();
+    } catch (err: any) {
+      console.error('Pause all failed:', err);
+      alert(`Pause all failed: ${err?.message || 'Unknown error'}`);
+    } finally {
+      setPausingAll(false);
+    }
   };
 
   const handleRerun = async (run: RunItem) => {
@@ -265,6 +304,29 @@ export function RunsManager() {
             title="Refresh runs list"
           >
             Refresh
+          </button>
+          <button
+            type="button"
+            onClick={() => void handlePauseAll()}
+            disabled={pausingAll}
+            title="Pause all in-progress agent runs"
+            style={{
+              background: pausingAll ? 'var(--bg-muted)' : 'var(--color-warning-dim, #fef3c7)',
+              border: '1px solid var(--color-warning, #d97706)',
+              color: 'var(--color-warning, #b45309)',
+              padding: '9px 14px',
+              borderRadius: 'var(--radius-md)',
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: pausingAll ? 'wait' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              opacity: pausingAll ? 0.7 : 1,
+            }}
+          >
+            <span>⏸</span>
+            <span>{pausingAll ? 'Pausing…' : 'Pause All'}</span>
           </button>
           {/* Compare Runs Button */}
           <Link

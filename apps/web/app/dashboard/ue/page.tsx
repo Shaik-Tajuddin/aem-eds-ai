@@ -1,179 +1,76 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { TopBar } from '../../../components/layout/TopBar';
 import {
   CheckCircle2,
   FileCode2,
   Layers,
-  Sparkles,
   ExternalLink,
   ShieldCheck,
   Search,
   Box,
-  Play,
 } from 'lucide-react';
 import { useProjects } from '../../../lib/project-store';
 
-interface TestedBlock {
-  id: string;
-  name: string;
-  category: string;
-  fieldsCount: number;
-  status: 'PASS' | 'FAIL';
-  checks: {
-    add: boolean;
-    edit: boolean;
-    save: boolean;
-    reopen: boolean;
-    render: boolean;
+type PhaseStatus = 'PASS' | 'FAIL' | 'NOT_RUN' | 'UNAVAILABLE' | 'SKIPPED';
+
+type UeBlockEvidence = {
+  blockName: string;
+  actions: Record<string, string>;
+  pageUrl?: string;
+  runId?: string;
+  updatedAt?: string;
+};
+
+type UeAuthoringResponse = {
+  empty: boolean;
+  message?: string;
+  summary?: {
+    pass: number;
+    fail: number;
+    unavailable: number;
+    skipped: number;
+    notRun: number;
+    total: number;
   };
-  fields: Array<{
-    name: string;
-    type: string;
-    sampleValue: string;
+  byBlock?: UeBlockEvidence[];
+  tests?: Array<{
+    id: string;
+    runId: string;
+    pageUrl: string;
+    blockName: string;
+    action: string;
+    status: string;
+    errorMessage?: string | null;
+    timestamp?: string;
   }>;
+};
+
+function statusColor(status: string): string {
+  const s = status.toUpperCase();
+  if (s === 'PASS') return 'var(--color-success)';
+  if (s === 'FAIL') return 'var(--color-danger, #ef4444)';
+  if (s === 'UNAVAILABLE' || s === 'SKIPPED') return 'var(--color-warning)';
+  return 'var(--text-tertiary)';
 }
 
-const TESTED_BLOCKS: TestedBlock[] = [
-  {
-    id: 'hero',
-    name: 'Hero Banner',
-    category: 'Structural',
-    fieldsCount: 4,
-    status: 'PASS',
-    checks: { add: true, edit: true, save: true, reopen: true, render: true },
-    fields: [
-      { name: 'title', type: 'text', sampleValue: 'About WKND' },
-      { name: 'image', type: 'reference', sampleValue: '/content/dam/wknd/en/about-us/hero.jpg' },
-      { name: 'description', type: 'richtext', sampleValue: 'Explore our story and outdoor adventures.' },
-      { name: 'cta', type: 'text', sampleValue: 'Read More' },
-    ],
-  },
-  {
-    id: 'columns',
-    name: 'Two-Column Philosophy',
-    category: 'Layout',
-    fieldsCount: 3,
-    status: 'PASS',
-    checks: { add: true, edit: true, save: true, reopen: true, render: true },
-    fields: [
-      { name: 'columnsCount', type: 'number', sampleValue: '2' },
-      { name: 'heading', type: 'text', sampleValue: 'Our Philosophy' },
-      { name: 'content', type: 'richtext', sampleValue: 'Empowering outdoor enthusiasts around the globe.' },
-    ],
-  },
-  {
-    id: 'cards',
-    name: 'Team Cards Grid',
-    category: 'Content',
-    fieldsCount: 3,
-    status: 'PASS',
-    checks: { add: true, edit: true, save: true, reopen: true, render: true },
-    fields: [
-      { name: 'cardTitle', type: 'text', sampleValue: 'Meet the Team' },
-      { name: 'cardImage', type: 'reference', sampleValue: '/content/dam/wknd/en/team/stacey.jpg' },
-      { name: 'bio', type: 'text', sampleValue: 'Lead expedition guide and community director' },
-    ],
-  },
-  {
-    id: 'teaser',
-    name: 'Adventure Teaser',
-    category: 'Marketing',
-    fieldsCount: 3,
-    status: 'PASS',
-    checks: { add: true, edit: true, save: true, reopen: true, render: true },
-    fields: [
-      { name: 'eyebrow', type: 'text', sampleValue: 'Join Us' },
-      { name: 'headline', type: 'text', sampleValue: 'Start Your Adventure Today' },
-      { name: 'action', type: 'text', sampleValue: 'Explore Trips' },
-    ],
-  },
-];
-
-const COMPONENT_DEFINITION_JSON = [
-  {
-    id: 'hero',
-    plugins: {
-      xwalk: {
-        page: {
-          resourceType: 'core/franklin/components/block/v1/block',
-          template: { name: 'Hero', model: 'hero' },
-        },
-      },
-    },
-  },
-  {
-    id: 'columns',
-    plugins: {
-      xwalk: {
-        page: {
-          resourceType: 'core/franklin/components/block/v1/block',
-          template: { name: 'Columns', model: 'columns' },
-        },
-      },
-    },
-  },
-  {
-    id: 'cards',
-    plugins: {
-      xwalk: {
-        page: {
-          resourceType: 'core/franklin/components/block/v1/block',
-          template: { name: 'Cards', model: 'cards' },
-        },
-      },
-    },
-  },
-  {
-    id: 'teaser',
-    plugins: {
-      xwalk: {
-        page: {
-          resourceType: 'core/franklin/components/block/v1/block',
-          template: { name: 'Teaser', model: 'teaser' },
-        },
-      },
-    },
-  },
-];
-
-const COMPONENT_MODELS_JSON = [
-  {
-    id: 'hero',
-    fields: [
-      { component: 'text', name: 'title', label: 'Headline', valueType: 'string' },
-      { component: 'reference', name: 'image', label: 'Hero Image', valueType: 'string' },
-      { component: 'richtext', name: 'description', label: 'Lead Description', valueType: 'string' },
-      { component: 'text', name: 'cta', label: 'Button Label', valueType: 'string' },
-    ],
-  },
-  {
-    id: 'columns',
-    fields: [
-      { component: 'number', name: 'columnsCount', label: 'Number of Columns', valueType: 'number' },
-      { component: 'text', name: 'heading', label: 'Section Heading', valueType: 'string' },
-      { component: 'richtext', name: 'content', label: 'Body Content', valueType: 'string' },
-    ],
-  },
-  {
-    id: 'cards',
-    fields: [
-      { component: 'text', name: 'cardTitle', label: 'Member Name / Title', valueType: 'string' },
-      { component: 'reference', name: 'cardImage', label: 'Profile Image', valueType: 'string' },
-      { component: 'text', name: 'bio', label: 'Biography / Subtitle', valueType: 'string' },
-    ],
-  },
-  {
-    id: 'teaser',
-    fields: [
-      { component: 'text', name: 'eyebrow', label: 'Eyebrow Text', valueType: 'string' },
-      { component: 'text', name: 'headline', label: 'Callout Headline', valueType: 'string' },
-      { component: 'text', name: 'action', label: 'Action Button', valueType: 'string' },
-    ],
-  },
-];
+function deriveCycleStatus(actions: Record<string, string>): PhaseStatus {
+  const open = actions.open?.toUpperCase();
+  const edit = actions.edit?.toUpperCase();
+  const save = actions.save?.toUpperCase();
+  const reopen = actions.reopen?.toUpperCase();
+  if ([open, edit, save, reopen].every((x) => x === 'PASS')) return 'PASS';
+  if ([open, edit, save, reopen].some((x) => x === 'FAIL')) return 'FAIL';
+  if ([open, edit, save, reopen].some((x) => x === 'UNAVAILABLE')) return 'UNAVAILABLE';
+  if ([open, edit, save, reopen].some((x) => x === 'SKIPPED')) return 'SKIPPED';
+  if (actions.instrumentation) {
+    const i = actions.instrumentation.toUpperCase();
+    if (i === 'PASS' || i === 'FAIL' || i === 'UNAVAILABLE' || i === 'SKIPPED') return i as PhaseStatus;
+  }
+  return 'NOT_RUN';
+}
 
 export default function UniversalEditorDashboard() {
   const { projects } = useProjects();
@@ -181,27 +78,77 @@ export default function UniversalEditorDashboard() {
   const authoringPath = currentProject?.aemAuthoringPath || '';
   const authorUrl = currentProject?.aemAuthorUrl || '';
 
-  const [selectedTab, setSelectedTab] = useState<'matrix' | 'definitions' | 'models' | 'dom'>('matrix');
+  const [selectedTab, setSelectedTab] = useState<'matrix' | 'raw'>('matrix');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedBlockId, setSelectedBlockId] = useState<string>('');
+  const [selectedBlock, setSelectedBlock] = useState<string>('');
+  const [live, setLive] = useState<UeAuthoringResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const filteredBlocks = TESTED_BLOCKS.filter(
-    (b) =>
-      b.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.id.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  useEffect(() => {
+    let cancelled = false;
+    const qs = currentProject?.id
+      ? `?projectId=${encodeURIComponent(currentProject.id)}`
+      : '';
+    setLoading(true);
+    fetch(`/api/backend/ue/authoring-tests${qs}`)
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+        if (!cancelled) {
+          setLive(data as UeAuthoringResponse);
+          setError(null);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : String(err));
+          setLive(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentProject?.id]);
 
-  const activeBlock = filteredBlocks.find((b) => b.id === selectedBlockId) ?? filteredBlocks[0];
+  const blocks = useMemo(() => {
+    const list = live?.byBlock || [];
+    const q = searchQuery.toLowerCase().trim();
+    return list.filter(
+      (b) =>
+        !q ||
+        b.blockName.toLowerCase().includes(q) ||
+        Object.keys(b.actions).some((a) => a.toLowerCase().includes(q)),
+    );
+  }, [live, searchQuery]);
+
+  const active = blocks.find((b) => b.blockName === selectedBlock) ?? blocks[0];
+
+  const chromeCycle = live?.byBlock?.find((b) => b.blockName === 'chrome-cycle');
+  const instrumentation = live?.byBlock?.find((b) => b.blockName === 'instrumentation');
+  const cycleStatus = chromeCycle ? deriveCycleStatus(chromeCycle.actions) : 'NOT_RUN';
+  const instrStatus = instrumentation?.actions?.instrumentation?.toUpperCase() || '—';
+
+  const summary = live?.summary || {
+    pass: 0,
+    fail: 0,
+    unavailable: 0,
+    skipped: 0,
+    notRun: 0,
+    total: 0,
+  };
 
   return (
     <>
       <TopBar
         title="Universal Editor Contracts"
-        subtitle="AEM Cloud in-context authoring schemas, component definitions, and verified authoring cycles"
+        subtitle="Live evidence from ue_authoring_tests — PASS only when pipeline recorded it"
       />
 
       <div style={{ padding: '24px 32px' }}>
-        {/* Active Authoring Page Path Strip */}
         <div
           style={{
             padding: '12px 18px',
@@ -216,59 +163,43 @@ export default function UniversalEditorDashboard() {
             gap: '12px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 600, color: authoringPath ? 'var(--accent-primary)' : 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Connected AEM Authoring Path:
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>
+              Project / Author path
             </span>
-            {authoringPath ? (
-              <>
-                <code style={{ fontSize: '13px', color: 'var(--text-primary)', background: 'var(--bg-surface)', padding: '3px 8px', borderRadius: '4px', border: '1px solid var(--border-subtle)' }}>
-                  {authoringPath}
-                </code>
-                <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  (URN: <code>urn:aemconnection:{authoringPath}</code>)
-                </span>
-              </>
-            ) : (
-              <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                No authoring path configured
-              </span>
-            )}
+            <code style={{ fontSize: '13px' }}>
+              {currentProject?.name || 'All projects'} · {authoringPath || 'not configured'}
+            </code>
           </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {authoringPath && authorUrl ? (
-              <a
-                href={`${authorUrl.replace(/\/$/, '')}/sites.html${authoringPath.startsWith('/') ? authoringPath : `/${authoringPath}`}`}
-                target="_blank"
-                rel="noreferrer"
-                className="btn btn-ghost btn-sm"
-                style={{ fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-              >
-                <ExternalLink size={12} /> Open in AEM Sites
-              </a>
-            ) : (
-              <Link
-                href="/dashboard/projects/new"
-                className="btn btn-ghost btn-sm"
-                style={{ fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-              >
-                Configure in Project
-              </Link>
-            )}
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <Link href="/dashboard/runs" className="btn btn-ghost btn-sm">
+              View runs
+            </Link>
             <a
               href="https://experience.adobe.net/#/sites/author/universal-editor"
               target="_blank"
               rel="noreferrer"
               className="btn btn-primary btn-sm"
-              style={{ fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
             >
-              <ExternalLink size={12} /> Launch Universal Editor
+              <ExternalLink size={12} /> Launch UE
             </a>
           </div>
         </div>
 
-        {/* KPI Strip */}
+        {error ? (
+          <div className="card" style={{ padding: '14px 18px', marginBottom: '16px', color: 'var(--color-danger, #ef4444)' }}>
+            Failed to load UE evidence: {error}
+          </div>
+        ) : null}
+
+        {live?.empty || (!loading && summary.total === 0) ? (
+          <div className="card" style={{ padding: '14px 18px', marginBottom: '16px', color: 'var(--text-secondary)' }}>
+            {live?.message ||
+              'No UE authoring evidence yet — run a pipeline with ENABLE_LIVE_UE / ENABLE_LIVE_UE_AUTHORING.'}
+          </div>
+        ) : null}
+
         <div
           style={{
             display: 'grid',
@@ -278,370 +209,235 @@ export default function UniversalEditorDashboard() {
           }}
         >
           <div className="card" style={{ padding: '18px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-text-secondary)', fontSize: '13px', marginBottom: '6px' }}>
-              <Box size={16} color="var(--color-accent-purple)" />
-              Blocks Tested
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', marginBottom: '6px', color: 'var(--text-secondary)' }}>
+              <Box size={16} /> Evidence rows
             </div>
-            <div style={{ fontSize: '26px', fontWeight: 700 }}>
-              {filteredBlocks.length} / {filteredBlocks.length}
-            </div>
-            <div style={{ fontSize: '12px', color: filteredBlocks.length > 0 ? 'var(--color-success)' : 'var(--text-tertiary)', marginTop: '4px' }}>
-              {filteredBlocks.length > 0 ? '100% authoring ready' : 'Awaiting initial run'}
+            <div style={{ fontSize: '26px', fontWeight: 700 }}>{loading ? '…' : summary.total}</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
+              PASS {summary.pass} · FAIL {summary.fail} · UNAVAIL {summary.unavailable}
             </div>
           </div>
 
           <div className="card" style={{ padding: '18px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-text-secondary)', fontSize: '13px', marginBottom: '6px' }}>
-              <Layers size={16} color="var(--color-accent-cyan)" />
-              Fields Tested
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', marginBottom: '6px', color: 'var(--text-secondary)' }}>
+              <Layers size={16} /> Blocks with evidence
             </div>
-            <div style={{ fontSize: '26px', fontWeight: 700 }}>0 / 0</div>
-            <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-              Across all component models
-            </div>
-          </div>
-
-          <div className="card" style={{ padding: '18px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-text-secondary)', fontSize: '13px', marginBottom: '6px' }}>
-              <CheckCircle2 size={16} color="var(--color-success)" />
-              Authoring Cycle Status
-            </div>
-            <div style={{ fontSize: '26px', fontWeight: 700, color: filteredBlocks.length > 0 ? 'var(--color-success)' : 'var(--text-tertiary)' }}>
-              {filteredBlocks.length > 0 ? 'PASS' : '—'}
-            </div>
-            <div style={{ fontSize: '12px', color: filteredBlocks.length > 0 ? 'var(--color-success)' : 'var(--text-tertiary)', marginTop: '4px' }}>
-              Add · Edit · Save · Reopen
+            <div style={{ fontSize: '26px', fontWeight: 700 }}>{loading ? '…' : blocks.length}</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
+              From latest run evidence keys
             </div>
           </div>
 
           <div className="card" style={{ padding: '18px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-text-secondary)', fontSize: '13px', marginBottom: '6px' }}>
-              <ShieldCheck size={16} color="var(--color-success)" />
-              DOM Instrumentation
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', marginBottom: '6px', color: 'var(--text-secondary)' }}>
+              <CheckCircle2 size={16} /> Chrome authoring cycle
             </div>
-            <div style={{ fontSize: '26px', fontWeight: 700, color: filteredBlocks.length > 0 ? 'var(--color-success)' : 'var(--text-tertiary)' }}>
-              {filteredBlocks.length > 0 ? '100%' : '—'}
+            <div style={{ fontSize: '26px', fontWeight: 700, color: statusColor(cycleStatus) }}>
+              {loading ? '…' : cycleStatus}
             </div>
-            <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-              <code>data-aue-*</code> compliant
+            <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
+              open/edit/save/reopen (+ reopenContent when enabled)
+            </div>
+          </div>
+
+          <div className="card" style={{ padding: '18px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', marginBottom: '6px', color: 'var(--text-secondary)' }}>
+              <ShieldCheck size={16} /> DOM instrumentation
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: 700, color: statusColor(instrStatus) }}>
+              {loading ? '…' : instrStatus}
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
+              ENABLE_LIVE_UE data-aue-* check
             </div>
           </div>
         </div>
 
-        {/* Empty State when no blocks have been synthesized */}
-        {filteredBlocks.length === 0 ? (
-          <div
-            className="card"
-            style={{
-              padding: '48px 24px',
-              textAlign: 'center',
-              background: 'var(--bg-surface)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: 'var(--radius-lg)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '14px',
-            }}
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+          <button
+            className={`btn btn-sm ${selectedTab === 'matrix' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setSelectedTab('matrix')}
           >
-            <div
-              style={{
-                width: '48px',
-                height: '48px',
-                borderRadius: '50%',
-                background: 'rgba(59, 130, 246, 0.1)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <FileCode2 size={24} color="var(--accent-primary)" />
-            </div>
-            <div style={{ maxWidth: '440px' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 6px 0' }}>
-                No Universal Editor Contracts Synthesized
-              </h3>
-              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-                Launch an autonomous modernization run to generate <code>_component-definition.json</code>, <code>_component-models.json</code>, and verified <code>data-aue-*</code> DOM instrumentations.
-              </p>
-            </div>
-            <Link
-              href="/dashboard/runs"
-              className="btn btn-primary btn-sm"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}
-            >
-              <Play size={14} />
-              <span>Go to Runs Manager</span>
-            </Link>
-          </div>
-        ) : (
-          <>
-            {/* View Switcher Tabs */}
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
-              <button
-                onClick={() => setSelectedTab('matrix')}
-                className={`btn btn-sm ${selectedTab === 'matrix' ? 'btn-primary' : 'btn-secondary'}`}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-              >
-                <CheckCircle2 size={14} /> Authoring Verification Matrix
-              </button>
-              <button
-                onClick={() => setSelectedTab('definitions')}
-                className={`btn btn-sm ${selectedTab === 'definitions' ? 'btn-primary' : 'btn-secondary'}`}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-              >
-                <FileCode2 size={14} /> Component Definitions Catalog
-              </button>
-              <button
-                onClick={() => setSelectedTab('models')}
-                className={`btn btn-sm ${selectedTab === 'models' ? 'btn-primary' : 'btn-secondary'}`}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-              >
-                <Layers size={14} /> Component Field Models
-              </button>
-              <button
-                onClick={() => setSelectedTab('dom')}
-                className={`btn btn-sm ${selectedTab === 'dom' ? 'btn-primary' : 'btn-secondary'}`}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-              >
-                <Sparkles size={14} /> DOM Instrumentation View
-              </button>
-            </div>
+            Authoring matrix
+          </button>
+          <button
+            className={`btn btn-sm ${selectedTab === 'raw' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setSelectedTab('raw')}
+          >
+            Raw evidence
+          </button>
+        </div>
 
-            {/* Tab 1: Authoring Matrix */}
-            {selectedTab === 'matrix' && activeBlock && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 1fr) 2fr', gap: '20px' }}>
-                {/* Block Selector */}
-                <div className="card" style={{ padding: '16px' }}>
-                  <div style={{ marginBottom: '14px', position: 'relative' }}>
-                    <Search
-                      size={14}
-                      style={{ position: 'absolute', left: '10px', top: '10px', color: 'var(--color-text-muted)' }}
-                    />
-                    <input
-                      type="text"
-                      placeholder="Filter blocks..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+        {selectedTab === 'matrix' ? (
+          blocks.length === 0 ? (
+            <div className="card" style={{ padding: '40px 24px', textAlign: 'center' }}>
+              <FileCode2 size={28} color="var(--accent-primary)" style={{ marginBottom: 12 }} />
+              <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: 8 }}>No live UE evidence yet</h3>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', maxWidth: 480, margin: '0 auto 14px' }}>
+                Demo PASS rows are intentionally removed. Launch a run with live UE flags to populate this matrix from{' '}
+                <code>ue_authoring_tests</code>.
+              </p>
+              <Link href="/dashboard/runs" className="btn btn-primary btn-sm">
+                Go to Agent Runs
+              </Link>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '16px' }}>
+              <div className="card" style={{ padding: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <Search size={14} />
+                  <input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Filter blocks…"
+                    style={{
+                      flex: 1,
+                      background: 'transparent',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: 6,
+                      padding: '6px 8px',
+                      color: 'var(--text-primary)',
+                      fontSize: 13,
+                    }}
+                  />
+                </div>
+                {blocks.map((b) => {
+                  const st = deriveCycleStatus(b.actions);
+                  return (
+                    <button
+                      key={b.blockName}
+                      type="button"
+                      onClick={() => setSelectedBlock(b.blockName)}
                       style={{
                         width: '100%',
-                        padding: '6px 12px 6px 32px',
-                        borderRadius: 'var(--radius-sm)',
-                        background: 'var(--color-bg-base)',
-                        border: '1px solid var(--color-border-subtle)',
-                        color: 'var(--color-text-primary)',
-                        fontSize: '13px',
+                        textAlign: 'left',
+                        padding: '10px 12px',
+                        marginBottom: 6,
+                        borderRadius: 8,
+                        border:
+                          active?.blockName === b.blockName
+                            ? '1px solid var(--accent-primary)'
+                            : '1px solid transparent',
+                        background:
+                          active?.blockName === b.blockName
+                            ? 'rgba(59,130,246,0.08)'
+                            : 'transparent',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        gap: 8,
                       }}
-                    />
-                  </div>
+                    >
+                      <span style={{ fontSize: 13, fontWeight: 600 }}>{b.blockName}</span>
+                      <span className="badge" style={{ color: statusColor(st), fontSize: 10 }}>
+                        {st}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    {filteredBlocks.map((block) => {
-                      const isSelected = block.id === activeBlock.id;
-                      return (
-                        <button
-                          key={block.id}
-                          onClick={() => setSelectedBlockId(block.id)}
-                          style={{
-                            padding: '12px',
-                            borderRadius: 'var(--radius-sm)',
-                            textAlign: 'left',
-                            background: isSelected ? 'rgba(124, 58, 237, 0.15)' : 'transparent',
-                            border: isSelected ? '1px solid var(--color-accent-purple)' : '1px solid transparent',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                          }}
-                        >
-                          <div>
-                            <div style={{ fontWeight: 600, fontSize: '13px', color: isSelected ? 'var(--color-accent-purple-light)' : 'var(--color-text-primary)' }}>
-                              {block.name}
-                            </div>
-                            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-                              Category: {block.category} · {block.fieldsCount} fields
-                            </div>
-                          </div>
-                          <span className="badge badge-success" style={{ fontSize: '10px' }}>
-                            PASS
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Details Panel */}
-                <div className="card" style={{ padding: '24px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                    <div>
-                      <h3 style={{ fontSize: '16px', fontWeight: 600 }}>{activeBlock.name}</h3>
-                      <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-                        ID: <code>{activeBlock.id}</code> · Category: {activeBlock.category}
+              <div className="card" style={{ padding: 20 }}>
+                {active ? (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: 16 }}>{active.blockName}</h3>
+                        <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>
+                          Run{' '}
+                          {active.runId ? (
+                            <Link href={`/dashboard/runs/${active.runId}`}>
+                              <code>{active.runId.slice(0, 8)}…</code>
+                            </Link>
+                          ) : (
+                            '—'
+                          )}
+                          {active.pageUrl ? (
+                            <>
+                              {' '}
+                              · <code>{active.pageUrl}</code>
+                            </>
+                          ) : null}
+                        </div>
                       </div>
+                      <span style={{ color: statusColor(deriveCycleStatus(active.actions)), fontWeight: 700 }}>
+                        {deriveCycleStatus(active.actions)}
+                      </span>
                     </div>
-                    <span className="badge badge-success">Universal Editor Verified</span>
-                  </div>
 
-                  {/* 5-Phase Checklist */}
-                  <div style={{ marginBottom: '24px' }}>
-                    <h4 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '10px' }}>
-                      Automated 5-Step In-Context Lifecycle Verification
-                    </h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px' }}>
-                      {[
-                        { label: '1. Add Block', check: activeBlock.checks.add },
-                        { label: '2. Edit Properties', check: activeBlock.checks.edit },
-                        { label: '3. Save Changes', check: activeBlock.checks.save },
-                        { label: '4. Reopen Page', check: activeBlock.checks.reopen },
-                        { label: '5. EDS Render', check: activeBlock.checks.render },
-                      ].map((step, idx) => (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 10 }}>
+                      {Object.entries(active.actions).map(([action, status]) => (
                         <div
-                          key={idx}
+                          key={action}
                           style={{
-                            padding: '10px',
-                            borderRadius: 'var(--radius-sm)',
-                            background: step.check ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
-                            border: `1px solid ${step.check ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
-                            textAlign: 'center',
+                            padding: 12,
+                            border: '1px solid var(--border-subtle)',
+                            borderRadius: 8,
+                            background: 'var(--bg-base)',
                           }}
                         >
-                          <CheckCircle2 size={16} color="var(--color-success)" style={{ margin: '0 auto 4px auto' }} />
-                          <div style={{ fontSize: '11px', fontWeight: 600 }}>{step.label}</div>
-                          <div style={{ fontSize: '10px', color: 'var(--color-success)', marginTop: '2px' }}>VERIFIED</div>
+                          <div style={{ fontSize: 11, color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>
+                            {action}
+                          </div>
+                          <div style={{ fontSize: 16, fontWeight: 700, color: statusColor(status), marginTop: 4 }}>
+                            {status}
+                          </div>
                         </div>
                       ))}
                     </div>
-                  </div>
-
-                  {/* Editable Fields Table */}
-                  <div>
-                    <h4 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '10px' }}>
-                      Model Fields
-                    </h4>
-                    <div style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse' }}>
-                        <thead>
-                          <tr style={{ borderBottom: '1px solid var(--color-border-subtle)', textAlign: 'left', color: 'var(--color-text-muted)' }}>
-                            <th style={{ padding: '8px' }}>Field ID</th>
-                            <th style={{ padding: '8px' }}>Widget Component</th>
-                            <th style={{ padding: '8px' }}>Sample Tested Value</th>
-                            <th style={{ padding: '8px' }}>Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {activeBlock.fields.map((f) => (
-                            <tr key={f.name} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                              <td style={{ padding: '8px', fontFamily: 'var(--font-mono)' }}>{f.name}</td>
-                              <td style={{ padding: '8px' }}>
-                                <span className="badge badge-neutral" style={{ fontSize: '10px' }}>{f.type}</span>
-                              </td>
-                              <td style={{ padding: '8px', color: 'var(--color-text-secondary)', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {f.sampleValue}
-                              </td>
-                              <td style={{ padding: '8px' }}>
-                                <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>✓ Persisted</span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
+                  </>
+                ) : null}
               </div>
-            )}
-
-            {/* Tab 2: _component-definition.json */}
-            {selectedTab === 'definitions' && (
-              <div className="card" style={{ padding: '24px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                  <div>
-                    <h3 style={{ fontSize: '15px', fontWeight: 600 }}>_component-definition.json</h3>
-                    <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
-                      Generated Adobe Universal Editor component definition catalog for Edge Delivery Services
-                    </p>
-                  </div>
-                  <span className="badge badge-success">Valid JSON Schema</span>
-                </div>
-                <pre
-                  style={{
-                    background: '#090d16',
-                    padding: '16px',
-                    borderRadius: 'var(--radius-sm)',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '12px',
-                    color: '#38bdf8',
-                    overflowX: 'auto',
-                    lineHeight: 1.5,
-                  }}
-                >
-                  {JSON.stringify(COMPONENT_DEFINITION_JSON, null, 2)}
-                </pre>
-              </div>
-            )}
-
-            {/* Tab 3: _component-models.json */}
-            {selectedTab === 'models' && (
-              <div className="card" style={{ padding: '24px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                  <div>
-                    <h3 style={{ fontSize: '15px', fontWeight: 600 }}>_component-models.json</h3>
-                    <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
-                      Component field models defining text, rich text, image references, and options
-                    </p>
-                  </div>
-                  <span className="badge badge-success">Valid JSON Schema</span>
-                </div>
-                <pre
-                  style={{
-                    background: '#090d16',
-                    padding: '16px',
-                    borderRadius: 'var(--radius-sm)',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '12px',
-                    color: '#a78bfa',
-                    overflowX: 'auto',
-                    lineHeight: 1.5,
-                  }}
-                >
-                  {JSON.stringify(COMPONENT_MODELS_JSON, null, 2)}
-                </pre>
-              </div>
-            )}
-
-            {/* Tab 4: DOM Instrumentation View */}
-            {selectedTab === 'dom' && (
-              <div className="card" style={{ padding: '24px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                  <div>
-                    <h3 style={{ fontSize: '15px', fontWeight: 600 }}>Live EDS Block Instrumentation Specification</h3>
-                    <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
-                      HTML decoration with data-aue-* attributes enabling in-context inline authoring
-                    </p>
-                  </div>
-                  <span className="badge badge-success">100% Compliant</span>
-                </div>
-                <pre
-                  style={{
-                    background: '#090d16',
-                    padding: '16px',
-                    borderRadius: 'var(--radius-sm)',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '12px',
-                    color: '#34d399',
-                    overflowX: 'auto',
-                    lineHeight: 1.5,
-                  }}
-                >
-{`<!-- Generated EDS Block with Universal Editor Instrumentation -->
-<!-- Available once an autonomous run has synthesized block definitions -->`}
-                </pre>
-              </div>
-            )}
-          </>
+            </div>
+          )
+        ) : (
+          <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
+                  <th style={{ padding: '10px 14px', textAlign: 'left' }}>Block</th>
+                  <th style={{ padding: '10px 14px', textAlign: 'left' }}>Action</th>
+                  <th style={{ padding: '10px 14px', textAlign: 'left' }}>Status</th>
+                  <th style={{ padding: '10px 14px', textAlign: 'left' }}>Run</th>
+                  <th style={{ padding: '10px 14px', textAlign: 'left' }}>When</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(live?.tests || []).length === 0 ? (
+                  <tr>
+                    <td colSpan={5} style={{ padding: 20, textAlign: 'center', color: 'var(--text-tertiary)' }}>
+                      No rows
+                    </td>
+                  </tr>
+                ) : (
+                  (live?.tests || []).map((t) => (
+                    <tr key={t.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                      <td style={{ padding: '10px 14px' }}>{t.blockName}</td>
+                      <td style={{ padding: '10px 14px' }}>{t.action}</td>
+                      <td style={{ padding: '10px 14px', color: statusColor(t.status), fontWeight: 600 }}>
+                        {t.status}
+                      </td>
+                      <td style={{ padding: '10px 14px' }}>
+                        <Link href={`/dashboard/runs/${t.runId}`}>
+                          <code>{t.runId.slice(0, 8)}…</code>
+                        </Link>
+                      </td>
+                      <td style={{ padding: '10px 14px', color: 'var(--text-tertiary)' }}>
+                        {t.timestamp ? new Date(t.timestamp).toLocaleString() : '—'}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         )}
+
+        {authorUrl ? (
+          <p style={{ marginTop: 16, fontSize: 12, color: 'var(--text-tertiary)' }}>
+            Author host: <code>{authorUrl}</code>
+          </p>
+        ) : null}
       </div>
     </>
   );

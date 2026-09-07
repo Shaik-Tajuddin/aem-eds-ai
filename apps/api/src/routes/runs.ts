@@ -1,10 +1,17 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { getDatabase } from '@aeds/database';
-import { agentRuns, projects, agentEvents, repositories, pullRequests, projectConfigs, environments } from '@aeds/database';
-import { eq, desc, and } from '@aeds/database';
+import { agentRuns, projects, agentEvents, repositories, pullRequests, projectConfigs, environments, persistUsageFromAgentEvent, persistPendingToolApproval, ueAuthoringTests, listPendingFromSnapshot } from '@aeds/database';
+import { eq, desc, and, notInArray } from '@aeds/database';
 import { AgentOrchestrator, resolveReferenceSourceUrl } from '@aeds/agent';
 import { enqueueAgentRun, getAllQueueMetrics } from '@aeds/queue';
+import {
+  abortAllRuns,
+  abortRun,
+  clearRunAbort,
+  PAUSE_ALL_SKIP_STATUSES,
+  registerRunAbort,
+} from '../services/run-abort.js';
 export const runsPlugin: FastifyPluginAsync = async (server) => {
   const db = getDatabase();
 
@@ -220,8 +227,40 @@ export const runsPlugin: FastifyPluginAsync = async (server) => {
             server.log.warn({ err, runId: run.id }, 'Failed to record agent event');
           }
 
+          try {
+            await persistUsageFromAgentEvent(db, run.id, String(type), payload);
+          } catch (err) {
+            server.log.warn({ err, runId: run.id }, 'Failed to persist usage telemetry');
+          }
+
+          if (String(type) === 'tool.approval_required' && typeof payload.callId === 'string') {
+            try {
+              await persistPendingToolApproval(db, {
+                callId: String(payload.callId),
+                toolName: String(payload.toolName || 'unknown'),
+                namespace: String(payload.namespace || 'unknown'),
+                riskLevel: String(payload.riskLevel || 'unknown'),
+                runId: run.id,
+                projectId: body.projectId,
+                input:
+                  typeof payload.input === 'object' && payload.input
+                    ? (payload.input as Record<string, unknown>)
+                    : {},
+                sanitizedInput:
+                  typeof payload.sanitizedInput === 'object' && payload.sanitizedInput
+                    ? (payload.sanitizedInput as Record<string, unknown>)
+                    : {},
+                createdAt: String(payload.createdAt || new Date().toISOString()),
+                reason: typeof payload.reason === 'string' ? payload.reason : undefined,
+              });
+            } catch (err) {
+              server.log.warn({ err, runId: run.id }, 'Failed to persist pending tool approval');
+            }
+          }
+
           if (status && status !== 'running') {
             try {
+              // Never overwrite an explicit pause/cancel with in-flight stage progress
               await db
                 .update(agentRuns)
                 .set({
@@ -230,7 +269,12 @@ export const runsPlugin: FastifyPluginAsync = async (server) => {
                   ...(progress !== undefined ? { progress } : {}),
                   updatedAt: new Date(),
                 })
-                .where(eq(agentRuns.id, run.id));
+                .where(
+                  and(
+                    eq(agentRuns.id, run.id),
+                    notInArray(agentRuns.status, ['PAUSED', 'CANCELLED']),
+                  ),
+                );
             } catch (err) {
               server.log.warn({ err, runId: run.id }, 'Failed to update run progress');
             }
@@ -238,6 +282,7 @@ export const runsPlugin: FastifyPluginAsync = async (server) => {
         };
 
         const executeInProcess = () => {
+          const abortSignal = registerRunAbort(run.id);
           const orchestrator = new AgentOrchestrator(run.id, undefined, undefined, body.maxIterations);
           orchestrator.onEvent(async (type, payload) => {
             await persistEvent(String(type), payload);
@@ -254,8 +299,14 @@ export const runsPlugin: FastifyPluginAsync = async (server) => {
               sourceUrl: referenceSourceUrl,
               authorUrl: envRow?.authorUrl || process.env.AEM_AUTHOR_URL || undefined,
               maxFixIterations: body.maxIterations,
+              abortSignal,
             })
             .then(async (result) => {
+              clearRunAbort(run.id);
+              // If paused mid-flight, keep PAUSED instead of overwriting with a later stage
+              if (abortSignal.aborted) {
+                return;
+              }
               await db
                 .update(agentRuns)
                 .set({
@@ -293,6 +344,11 @@ export const runsPlugin: FastifyPluginAsync = async (server) => {
               }
             })
             .catch(async (err) => {
+              clearRunAbort(run.id);
+              if (abortSignal.aborted) {
+                server.log.info({ runId: run.id }, 'Agent run aborted (paused)');
+                return;
+              }
               server.log.error({ err, runId: run.id }, 'Agent run pipeline failed');
               await db
                 .update(agentRuns)
@@ -420,6 +476,20 @@ export const runsPlugin: FastifyPluginAsync = async (server) => {
           .where(eq(pullRequests.runId, id))
           .limit(1);
 
+        const ueTests = await db
+          .select()
+          .from(ueAuthoringTests)
+          .where(eq(ueAuthoringTests.runId, id))
+          .limit(100);
+
+        const pendingToolApprovals = listPendingFromSnapshot(run.stateSnapshot).map((p) => ({
+          callId: p.callId,
+          toolName: p.toolName,
+          riskLevel: p.riskLevel,
+          createdAt: p.createdAt,
+          reason: p.reason,
+        }));
+
         return reply.send({
           run: {
             ...run,
@@ -429,6 +499,8 @@ export const runsPlugin: FastifyPluginAsync = async (server) => {
             pullRequestStatus: pr?.status ?? null,
             previewUrl:
               (pr?.evidenceSummary as { previewUrl?: string } | null)?.previewUrl ?? null,
+            ueAuthoringTests: ueTests,
+            pendingToolApprovals,
           },
         });
       } catch (err) {
@@ -480,6 +552,71 @@ export const runsPlugin: FastifyPluginAsync = async (server) => {
     }
   );
 
+  // POST /api/runs/pause-all — pause every non-terminal in-flight run
+  server.post(
+    '/pause-all',
+    {
+      schema: {
+        tags: ['runs'],
+        summary: 'Pause all active agent runs',
+        security: [{ bearerAuth: [] }],
+      },
+      // Allow POST with empty body (browsers often omit Content-Type)
+      config: { rawBody: false },
+    },
+    async (_request, reply) => {
+      try {
+        const active = await db
+          .select({
+            id: agentRuns.id,
+            status: agentRuns.status,
+            stateSnapshot: agentRuns.stateSnapshot,
+          })
+          .from(agentRuns)
+          .where(notInArray(agentRuns.status, [...PAUSE_ALL_SKIP_STATUSES]));
+
+        const pausedAt = new Date().toISOString();
+        const pausedIds: string[] = [];
+
+        for (const run of active) {
+          const snapshot = {
+            ...(typeof run.stateSnapshot === 'object' && run.stateSnapshot
+              ? (run.stateSnapshot as Record<string, unknown>)
+              : {}),
+            pausedAt,
+            statusBeforePause: run.status,
+            pausedVia: 'pause-all',
+          };
+          await db
+            .update(agentRuns)
+            .set({
+              status: 'PAUSED',
+              currentStage: 'Paused',
+              stateSnapshot: snapshot,
+              updatedAt: new Date(),
+            })
+            .where(eq(agentRuns.id, run.id));
+          abortRun(run.id);
+          pausedIds.push(run.id);
+        }
+
+        // Also abort any in-process runs that may not have been selected (race)
+        abortAllRuns();
+
+        return reply.send({
+          message: pausedIds.length
+            ? `Paused ${pausedIds.length} agent run(s)`
+            : 'No active agent runs to pause',
+          pausedCount: pausedIds.length,
+          pausedIds,
+        });
+      } catch (err) {
+        _request.log.error({ err }, 'Failed to pause all runs');
+        return reply.code(500).send({ error: 'Failed to pause all runs' });
+      }
+    },
+  );
+
   // POST /api/runs/:id/pause
   server.post<{ Params: { id: string } }>(
     '/:id/pause',
@@ -489,6 +626,13 @@ export const runsPlugin: FastifyPluginAsync = async (server) => {
       const [run] = await db.select().from(agentRuns).where(eq(agentRuns.id, id)).limit(1);
       if (!run) return reply.status(404).send({ error: 'Run not found' });
 
+      if (PAUSE_ALL_SKIP_STATUSES.includes(run.status as (typeof PAUSE_ALL_SKIP_STATUSES)[number])) {
+        return reply.status(409).send({
+          error: `Run status ${run.status} cannot be paused`,
+          hint: 'Only in-progress runs can be paused',
+        });
+      }
+
       const snapshot = {
         ...(typeof run.stateSnapshot === 'object' && run.stateSnapshot ? run.stateSnapshot : {}),
         pausedAt: new Date().toISOString(),
@@ -496,8 +640,14 @@ export const runsPlugin: FastifyPluginAsync = async (server) => {
       };
       await db
         .update(agentRuns)
-        .set({ status: 'PAUSED', stateSnapshot: snapshot })
+        .set({
+          status: 'PAUSED',
+          currentStage: 'Paused',
+          stateSnapshot: snapshot,
+          updatedAt: new Date(),
+        })
         .where(eq(agentRuns.id, id));
+      abortRun(id);
       return reply.send({ message: 'Run paused', stateSnapshot: snapshot });
     }
   );
@@ -511,11 +661,18 @@ export const runsPlugin: FastifyPluginAsync = async (server) => {
       const [run] = await db.select().from(agentRuns).where(eq(agentRuns.id, id)).limit(1);
       if (!run) return reply.status(404).send({ error: 'Run not found' });
 
-      const resumable = ['PAUSED', 'FAILED', 'LIMIT_REACHED', 'WAITING_APPROVAL'].includes(String(run.status));
+      if (String(run.status) === 'WAITING_APPROVAL') {
+        return reply.status(409).send({
+          error: 'WAITING_APPROVAL runs must use approve-deployment or reject-deployment',
+          hint: 'POST /api/runs/:id/approve-deployment or POST /api/runs/:id/reject-deployment',
+        });
+      }
+
+      const resumable = ['PAUSED', 'FAILED', 'LIMIT_REACHED'].includes(String(run.status));
       if (!resumable) {
         return reply.status(409).send({
           error: `Run status ${run.status} is not resumable`,
-          hint: 'Only PAUSED, FAILED, LIMIT_REACHED, or WAITING_APPROVAL runs can be resumed',
+          hint: 'Only PAUSED, FAILED, or LIMIT_REACHED runs can be resumed',
         });
       }
 
@@ -581,6 +738,304 @@ export const runsPlugin: FastifyPluginAsync = async (server) => {
         enqueueError,
       });
     }
+  );
+
+  // POST /api/runs/:id/approve-deployment — human gate: WAITING_APPROVAL → DEPLOYED
+  server.post<{
+    Params: { id: string };
+    Body: { mergePullRequest?: boolean; note?: string; mergeMethod?: 'merge' | 'squash' | 'rebase' };
+  }>(
+    '/:id/approve-deployment',
+    {
+      schema: {
+        tags: ['runs'],
+        summary: 'Approve production deployment after WAITING_APPROVAL (optional GitHub merge)',
+        security: [{ bearerAuth: [] }],
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params;
+      const body = request.body || {};
+      const [run] = await db.select().from(agentRuns).where(eq(agentRuns.id, id)).limit(1);
+      if (!run) return reply.status(404).send({ error: 'Run not found' });
+
+      if (String(run.status) !== 'WAITING_APPROVAL') {
+        return reply.status(409).send({
+          error: `Run status ${run.status} cannot be approved for deployment`,
+          hint: 'Only WAITING_APPROVAL runs can be approved',
+        });
+      }
+
+      const [repo] = await db
+        .select()
+        .from(repositories)
+        .where(eq(repositories.projectId, run.projectId))
+        .limit(1);
+      const [pr] = await db
+        .select()
+        .from(pullRequests)
+        .where(eq(pullRequests.runId, id))
+        .limit(1);
+
+      const fullName = repo?.fullName || '';
+      const [repoOwner, ...rest] = fullName.split('/');
+      const repoName = rest.join('/') || '';
+
+      const evidence: Array<{
+        kind: string;
+        status: 'PASS' | 'FAIL' | 'SKIPPED' | 'UNAVAILABLE';
+        summary: string;
+      }> = [];
+
+      let mergeResult: { merged?: boolean; sha?: string; message?: string; url?: string } | undefined;
+      const wantMerge = body.mergePullRequest === true;
+
+      if (wantMerge) {
+        if (process.env.ENABLE_GITHUB_MERGE === 'false') {
+          evidence.push({
+            kind: 'github_merge',
+            status: 'SKIPPED',
+            summary: 'Merge requested but ENABLE_GITHUB_MERGE=false',
+          });
+        } else if (!pr?.prNumber || !repoOwner || !repoName) {
+          evidence.push({
+            kind: 'github_merge',
+            status: 'UNAVAILABLE',
+            summary: 'No pull request number / repository recorded for this run — cannot merge',
+          });
+          return reply.status(409).send({
+            error: 'Cannot merge: missing PR number or repository metadata',
+            evidence,
+          });
+        } else {
+          try {
+            const { createDefaultToolRegistry } = await import('@aeds/agent');
+            const registry = createDefaultToolRegistry();
+            const { result, record } = await registry.execute(
+              'github.mergePR',
+              {
+                owner: repoOwner,
+                repo: repoName,
+                pullNumber: pr.prNumber,
+                mergeMethod: body.mergeMethod || 'squash',
+              },
+              {
+                runId: id,
+                projectId: run.projectId,
+                forceApprove: true,
+              },
+            );
+
+            if (!result.success) {
+              evidence.push({
+                kind: 'github_merge',
+                status: 'FAIL',
+                summary: result.error || 'github.mergePR failed',
+              });
+              await db.insert(agentEvents).values({
+                runId: id,
+                projectId: run.projectId,
+                type: 'human.approval_merge_failed',
+                actor: 'user',
+                step: 'WAITING_APPROVAL',
+                status: 'FAIL',
+                data: { evidence, toolCall: record, note: body.note },
+              });
+              return reply.status(502).send({
+                error: result.error || 'GitHub merge failed',
+                evidence,
+                status: 'WAITING_APPROVAL',
+              });
+            }
+
+            mergeResult = result.data as typeof mergeResult;
+            const merged = Boolean(mergeResult?.merged);
+            evidence.push({
+              kind: 'github_merge',
+              status: merged ? 'PASS' : 'FAIL',
+              summary: mergeResult?.message || (merged ? `Merged PR #${pr.prNumber}` : 'Merge returned merged=false'),
+            });
+
+            if (!merged) {
+              await db.insert(agentEvents).values({
+                runId: id,
+                projectId: run.projectId,
+                type: 'human.approval_merge_failed',
+                actor: 'user',
+                step: 'WAITING_APPROVAL',
+                status: 'FAIL',
+                data: { evidence, mergeResult, note: body.note },
+              });
+              return reply.status(502).send({
+                error: 'GitHub did not merge the pull request',
+                evidence,
+                mergeResult,
+                status: 'WAITING_APPROVAL',
+              });
+            }
+
+            await db
+              .update(pullRequests)
+              .set({
+                status: 'merged',
+                mergedAt: new Date(),
+                approvedAt: new Date(),
+              })
+              .where(eq(pullRequests.id, pr.id));
+          } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : String(err);
+            evidence.push({ kind: 'github_merge', status: 'FAIL', summary: message });
+            return reply.status(502).send({
+              error: message,
+              evidence,
+              status: 'WAITING_APPROVAL',
+            });
+          }
+        }
+      } else {
+        evidence.push({
+          kind: 'github_merge',
+          status: 'SKIPPED',
+          summary: 'Human approved deployment without requesting GitHub merge (mergePullRequest=false)',
+        });
+      }
+
+      evidence.push({
+        kind: 'deployment_approval',
+        status: 'PASS',
+        summary: body.note?.trim()
+          ? `Human approved production gate: ${body.note.trim()}`
+          : 'Human approved production gate (WAITING_APPROVAL → DEPLOYED)',
+      });
+
+      const snapshot = {
+        ...(typeof run.stateSnapshot === 'object' && run.stateSnapshot
+          ? (run.stateSnapshot as Record<string, unknown>)
+          : {}),
+        approvedAt: new Date().toISOString(),
+        approvalNote: body.note || null,
+        mergeRequested: wantMerge,
+        mergeResult: mergeResult || null,
+        approvalEvidence: evidence,
+      };
+
+      await db
+        .update(agentRuns)
+        .set({
+          status: 'DEPLOYED',
+          currentStage: 'DEPLOYED',
+          progress: 100,
+          completedAt: new Date(),
+          updatedAt: new Date(),
+          stateSnapshot: snapshot,
+        })
+        .where(eq(agentRuns.id, id));
+
+      if (pr && !wantMerge) {
+        await db
+          .update(pullRequests)
+          .set({ approvedAt: new Date() })
+          .where(eq(pullRequests.id, pr.id));
+      }
+
+      await db.insert(agentEvents).values({
+        runId: id,
+        projectId: run.projectId,
+        type: 'human.deployment_approved',
+        actor: 'user',
+        step: 'DEPLOYED',
+        status: 'PASS',
+        data: {
+          evidence,
+          pullRequestUrl: pr?.url,
+          pullRequestNumber: pr?.prNumber,
+          mergeResult: mergeResult || null,
+          note: body.note || null,
+        },
+      });
+
+      return reply.send({
+        message: 'Deployment approved',
+        status: 'DEPLOYED',
+        evidence,
+        mergeResult: mergeResult || null,
+        pullRequest: pr
+          ? { number: pr.prNumber, url: pr.url, status: wantMerge ? 'merged' : pr.status }
+          : null,
+      });
+    },
+  );
+
+  // POST /api/runs/:id/reject-deployment — human gate: WAITING_APPROVAL → CANCELLED
+  server.post<{
+    Params: { id: string };
+    Body: { reason?: string };
+  }>(
+    '/:id/reject-deployment',
+    {
+      schema: {
+        tags: ['runs'],
+        summary: 'Reject production deployment (WAITING_APPROVAL → CANCELLED)',
+        security: [{ bearerAuth: [] }],
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params;
+      const reason = request.body?.reason?.trim() || 'Rejected by human reviewer';
+      const [run] = await db.select().from(agentRuns).where(eq(agentRuns.id, id)).limit(1);
+      if (!run) return reply.status(404).send({ error: 'Run not found' });
+
+      if (String(run.status) !== 'WAITING_APPROVAL') {
+        return reply.status(409).send({
+          error: `Run status ${run.status} cannot be rejected for deployment`,
+          hint: 'Only WAITING_APPROVAL runs can be rejected',
+        });
+      }
+
+      const evidence = [
+        {
+          kind: 'deployment_approval',
+          status: 'FAIL' as const,
+          summary: reason,
+        },
+      ];
+
+      const snapshot = {
+        ...(typeof run.stateSnapshot === 'object' && run.stateSnapshot
+          ? (run.stateSnapshot as Record<string, unknown>)
+          : {}),
+        rejectedAt: new Date().toISOString(),
+        rejectionReason: reason,
+        approvalEvidence: evidence,
+      };
+
+      await db
+        .update(agentRuns)
+        .set({
+          status: 'CANCELLED',
+          currentStage: 'CANCELLED',
+          completedAt: new Date(),
+          updatedAt: new Date(),
+          stateSnapshot: snapshot,
+        })
+        .where(eq(agentRuns.id, id));
+
+      await db.insert(agentEvents).values({
+        runId: id,
+        projectId: run.projectId,
+        type: 'human.deployment_rejected',
+        actor: 'user',
+        step: 'CANCELLED',
+        status: 'FAIL',
+        data: { evidence, reason },
+      });
+
+      return reply.send({
+        message: 'Deployment rejected',
+        status: 'CANCELLED',
+        evidence,
+      });
+    },
   );
 
   // POST /api/runs/:id/cancel

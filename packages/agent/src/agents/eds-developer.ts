@@ -493,6 +493,7 @@ export class EdsDeveloperAgent extends BaseAgent {
       let rawContent = '';
       let metrics: {
         model: string;
+        provider?: string;
         latencyMs: number;
         inputTokens?: number;
         outputTokens?: number;
@@ -533,6 +534,7 @@ export class EdsDeveloperAgent extends BaseAgent {
       context.emit('llm.completed', {
         message: `LLM chunk ${chunkIndex}/${chunkTotal} raw response — ${blockName} attempt ${attempt}/${maxAttempts} (${metrics.latencyMs}ms, in=${metrics.inputTokens ?? 0} out=${metrics.outputTokens ?? 0})`,
         model: metrics.model,
+        provider: metrics.provider || process.env.LLM_PROVIDER || 'unknown',
         latencyMs: metrics.latencyMs,
         inputTokens: metrics.inputTokens,
         outputTokens: metrics.outputTokens,
