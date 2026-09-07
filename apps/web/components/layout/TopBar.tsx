@@ -8,10 +8,13 @@ interface TopBarProps {
   title: string;
   subtitle?: string;
   actions?: React.ReactNode;
+  showNewProject?: boolean;
 }
 
-export function TopBar({ title, subtitle, actions }: TopBarProps) {
+export function TopBar({ title, subtitle, actions, showNewProject }: TopBarProps) {
   const [now, setNow] = useState<string>('');
+  // Default showNewProject to false if custom actions are provided, or true if actions is not provided, unless explicitly specified
+  const shouldShowNewProject = showNewProject !== undefined ? showNewProject : !actions;
 
   useEffect(() => {
     const fmt = () =>
@@ -103,14 +106,16 @@ export function TopBar({ title, subtitle, actions }: TopBarProps) {
 
         {actions}
 
-        <Link
-          href="/dashboard/projects/new"
-          className="btn btn-primary btn-sm"
-          id="new-project-cta"
-        >
-          <Plus size={13} />
-          New Project
-        </Link>
+        {shouldShowNewProject && (
+          <Link
+            href="/dashboard/projects/new"
+            className="btn btn-primary btn-sm"
+            id="new-project-cta"
+          >
+            <Plus size={13} />
+            New Project
+          </Link>
+        )}
       </div>
     </header>
   );

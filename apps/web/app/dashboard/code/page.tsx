@@ -103,9 +103,16 @@ const FILES = [
   },
 ];
 
+import { useProjects } from '../../../lib/project-store';
+
 export default function CodeChangesPage() {
+  const { projects } = useProjects();
+  const currentProject = projects[0];
   const [selectedFile, setSelectedFile] = useState(FILES[0]);
   const [copied, setCopied] = useState(false);
+  const [showDemo, setShowDemo] = useState(false);
+
+  const hasCode = showDemo || (currentProject && currentProject.blocksCount > 0);
 
   const handleCopy = () => {
     setCopied(true);
@@ -117,6 +124,18 @@ export default function CodeChangesPage() {
       <TopBar
         title="Code Changes & Diffs"
         subtitle="Synthesized EDS blocks, scripts, styles, and atomic Git commit history"
+        actions={
+          !hasCode && (
+            <button
+              onClick={() => setShowDemo(true)}
+              className="btn btn-secondary btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <Code2 size={13} />
+              <span>View Sample Block Code</span>
+            </button>
+          )
+        }
       />
 
       <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -128,8 +147,12 @@ export default function CodeChangesPage() {
               <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', fontWeight: 500, textTransform: 'uppercase' }}>Modified Files</span>
               <FileCode2 size={16} color="var(--accent-primary)" />
             </div>
-            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>3 Files</div>
-            <div style={{ fontSize: '11px', color: 'var(--accent-primary)', marginTop: '4px' }}>+78 / -2 lines of code</div>
+            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
+              {hasCode ? '3 Files' : '0 Files'}
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--accent-primary)', marginTop: '4px' }}>
+              {hasCode ? '+78 / -2 lines of code' : 'Awaiting agent code run'}
+            </div>
           </div>
 
           <div className="card" style={{ padding: '18px 20px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
@@ -137,8 +160,12 @@ export default function CodeChangesPage() {
               <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', fontWeight: 500, textTransform: 'uppercase' }}>Target Branch</span>
               <GitBranch size={16} color="var(--color-ai)" />
             </div>
-            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>preview/hero-block</div>
-            <div style={{ fontSize: '11px', color: 'var(--color-ai)', marginTop: '4px' }}>PR #42 (Open)</div>
+            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
+              {currentProject ? currentProject.branch : hasCode ? 'preview/hero-block' : '—'}
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--color-ai)', marginTop: '4px' }}>
+              {currentProject ? currentProject.repo : 'Connect repository'}
+            </div>
           </div>
 
           <div className="card" style={{ padding: '18px 20px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
@@ -146,8 +173,12 @@ export default function CodeChangesPage() {
               <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', fontWeight: 500, textTransform: 'uppercase' }}>Franklin Compliance</span>
               <CheckCircle2 size={16} color="var(--color-success)" />
             </div>
-            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>100% Valid</div>
-            <div style={{ fontSize: '11px', color: 'var(--color-success)', marginTop: '4px' }}>Zero external npm deps in blocks</div>
+            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
+              {hasCode ? '100% Valid' : '—'}
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--color-success)', marginTop: '4px' }}>
+              {hasCode ? 'Zero external npm deps in blocks' : 'Validated during pipeline execution'}
+            </div>
           </div>
 
           <div className="card" style={{ padding: '18px 20px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
@@ -155,13 +186,53 @@ export default function CodeChangesPage() {
               <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', fontWeight: 500, textTransform: 'uppercase' }}>Universal Editor Contract</span>
               <Layers size={16} color="var(--color-warning)" />
             </div>
-            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>Schemas Valid</div>
-            <div style={{ fontSize: '11px', color: 'var(--color-warning)', marginTop: '4px' }}>data-aue-* attributes mapped</div>
+            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
+              {hasCode ? 'Schemas Valid' : '—'}
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--color-warning)', marginTop: '4px' }}>
+              {hasCode ? 'data-aue-* attributes mapped' : 'Pending block synthesis'}
+            </div>
           </div>
         </div>
 
-        {/* Diff Explorer */}
-        <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '20px', alignItems: 'start' }}>
+        {!hasCode ? (
+          <div
+            className="card"
+            style={{
+              padding: '48px 24px',
+              textAlign: 'center',
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 'var(--radius-lg)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '14px',
+            }}
+          >
+            <Code2 size={32} color="var(--accent-primary)" />
+            <div style={{ maxWidth: '460px' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 6px 0' }}>
+                No Code Diffs Generated
+              </h3>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                {currentProject
+                  ? `Trigger an autonomous agent run on ${currentProject.name} to synthesize Franklin EDS JavaScript blocks, CSS styles, and Universal Editor models.`
+                  : 'Trigger an autonomous agent run to synthesize Franklin EDS JavaScript blocks, CSS styles, and Universal Editor models.'}
+              </p>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '4px' }}>
+              <button
+                onClick={() => setShowDemo(true)}
+                className="btn btn-secondary btn-sm"
+              >
+                View Sample Block Code
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* Diff Explorer */
+          <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '20px', alignItems: 'start' }}>
           {/* File list */}
           <div className="card" style={{ padding: '12px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-tertiary)', padding: '6px 8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -224,6 +295,7 @@ export default function CodeChangesPage() {
             </div>
           </div>
         </div>
+        )}
 
       </div>
     </div>

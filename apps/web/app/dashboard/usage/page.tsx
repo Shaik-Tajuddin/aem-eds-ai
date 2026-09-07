@@ -6,50 +6,46 @@ import {
   Coins,
   Cpu,
   Zap,
-  TrendingUp,
-  Clock,
 } from 'lucide-react';
-
-const MODEL_USAGE = [
-  {
-    model: 'claude-3-7-sonnet-20250219',
-    provider: 'Anthropic',
-    inputTokens: 142800,
-    outputTokens: 48900,
-    cost: '$0.84',
-    avgLatency: '1.2s',
-    totalCalls: 64,
-  },
-  {
-    model: 'gpt-4o',
-    provider: 'OpenAI',
-    inputTokens: 98400,
-    outputTokens: 32100,
-    cost: '$0.52',
-    avgLatency: '980ms',
-    totalCalls: 48,
-  },
-  {
-    model: 'llama3.3',
-    provider: 'Ollama (Local)',
-    inputTokens: 215000,
-    outputTokens: 82000,
-    cost: '$0.00 (Self-hosted)',
-    avgLatency: '640ms',
-    totalCalls: 120,
-  },
-  {
-    model: 'nomic-embed-text',
-    provider: 'Ollama (Embeddings)',
-    inputTokens: 482000,
-    outputTokens: 0,
-    cost: '$0.00 (Self-hosted)',
-    avgLatency: '12ms',
-    totalCalls: 310,
-  },
-];
+import { useProjects } from '../../../lib/project-store';
 
 export default function UsagePage() {
+  const { projects } = useProjects();
+  const currentProject = projects[0];
+
+  const modelRows = [
+    {
+      model: currentProject?.llmProvider ? currentProject.llmProvider.split(' ')[0].toLowerCase() : 'claude-3-7-sonnet',
+      provider: currentProject?.llmProvider || 'Configured Primary LLM',
+      inputTokens: 0,
+      outputTokens: 0,
+      cost: '$0.00',
+      avgLatency: '—',
+      totalCalls: 0,
+      status: 'Active (Primary)',
+    },
+    {
+      model: 'ollama-local',
+      provider: 'Ollama (Local / Self-hosted)',
+      inputTokens: 0,
+      outputTokens: 0,
+      cost: '$0.00',
+      avgLatency: '—',
+      totalCalls: 0,
+      status: 'Ready',
+    },
+    {
+      model: 'nomic-embed-text',
+      provider: 'pgvector RAG Embeddings',
+      inputTokens: 0,
+      outputTokens: 0,
+      cost: '$0.00',
+      avgLatency: '—',
+      totalCalls: 0,
+      status: 'Indexed',
+    },
+  ];
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-base)' }}>
       <TopBar
@@ -66,8 +62,8 @@ export default function UsagePage() {
               <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', fontWeight: 500, textTransform: 'uppercase' }}>Total Cost (MTD)</span>
               <Coins size={16} color="var(--color-success)" />
             </div>
-            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>$1.36</div>
-            <div style={{ fontSize: '11px', color: 'var(--color-success)', marginTop: '4px' }}>62% saved via local Ollama</div>
+            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>$0.00</div>
+            <div style={{ fontSize: '11px', color: 'var(--color-success)', marginTop: '4px' }}>Zero billing charges</div>
           </div>
 
           <div className="card" style={{ padding: '18px 20px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
@@ -75,8 +71,8 @@ export default function UsagePage() {
               <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', fontWeight: 500, textTransform: 'uppercase' }}>Inference Tokens</span>
               <BarChart3 size={16} color="var(--accent-primary)" />
             </div>
-            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>938.2K</div>
-            <div style={{ fontSize: '11px', color: 'var(--accent-primary)', marginTop: '4px' }}>456.2K prompt / 163K completion</div>
+            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>0 Tokens</div>
+            <div style={{ fontSize: '11px', color: 'var(--accent-primary)', marginTop: '4px' }}>0 prompt / 0 completion</div>
           </div>
 
           <div className="card" style={{ padding: '18px 20px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
@@ -84,8 +80,8 @@ export default function UsagePage() {
               <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', fontWeight: 500, textTransform: 'uppercase' }}>Total Inferences</span>
               <Cpu size={16} color="var(--color-ai)" />
             </div>
-            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>542 Calls</div>
-            <div style={{ fontSize: '11px', color: 'var(--color-ai)', marginTop: '4px' }}>0 rate limit errors</div>
+            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>0 Calls</div>
+            <div style={{ fontSize: '11px', color: 'var(--color-ai)', marginTop: '4px' }}>Awaiting pipeline execution</div>
           </div>
 
           <div className="card" style={{ padding: '18px 20px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
@@ -93,8 +89,8 @@ export default function UsagePage() {
               <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', fontWeight: 500, textTransform: 'uppercase' }}>Average TTFT</span>
               <Zap size={16} color="var(--color-warning)" />
             </div>
-            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>480 ms</div>
-            <div style={{ fontSize: '11px', color: 'var(--color-warning)', marginTop: '4px' }}>Streaming token delivery</div>
+            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>—</div>
+            <div style={{ fontSize: '11px', color: 'var(--color-warning)', marginTop: '4px' }}>Streaming token delivery ready</div>
           </div>
         </div>
 
@@ -102,7 +98,9 @@ export default function UsagePage() {
         <div className="card" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>Usage Breakdown by Model & Provider</h3>
-            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Billing period: September 2026</span>
+            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+              Connected Project: {currentProject ? currentProject.name : 'None'}
+            </span>
           </div>
 
           <div style={{ overflowX: 'auto' }}>
@@ -119,7 +117,7 @@ export default function UsagePage() {
                 </tr>
               </thead>
               <tbody>
-                {MODEL_USAGE.map((m) => (
+                {modelRows.map((m) => (
                   <tr key={m.model} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                     <td style={{ padding: '14px 16px', fontWeight: 600, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
                       {m.model}

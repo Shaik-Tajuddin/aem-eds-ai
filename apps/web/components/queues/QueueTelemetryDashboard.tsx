@@ -38,9 +38,9 @@ const INITIAL_QUEUES: QueueData[] = [
     name: 'agent-runs',
     label: 'Agent Runs Queue',
     description: 'Autonomous 18-stage state machine execution, LLM synthesis, and Git commit jobs',
-    waiting: 1,
-    active: 1,
-    completed: 42,
+    waiting: 0,
+    active: 0,
+    completed: 0,
     failed: 0,
     delayed: 0,
     paused: false,
@@ -52,9 +52,9 @@ const INITIAL_QUEUES: QueueData[] = [
     label: 'Browser Automation Queue',
     description: 'Headless Playwright audit against preview URLs, A11y checks, and console log capture',
     waiting: 0,
-    active: 1,
-    completed: 28,
-    failed: 1,
+    active: 0,
+    completed: 0,
+    failed: 0,
     delayed: 0,
     paused: false,
     concurrency: 1,
@@ -66,7 +66,7 @@ const INITIAL_QUEUES: QueueData[] = [
     description: 'Pixelmatch comparison between Figma / baseline screenshots and live EDS render',
     waiting: 0,
     active: 0,
-    completed: 19,
+    completed: 0,
     failed: 0,
     delayed: 0,
     paused: false,
@@ -85,44 +85,7 @@ interface JobEvent {
   timestamp: string;
 }
 
-const INITIAL_JOBS: JobEvent[] = [
-  {
-    id: 'job-agent-7f1a',
-    queue: 'agent-runs',
-    runId: '123e4567-e89b-12d3-a456-426614174000',
-    status: 'active',
-    progress: 65,
-    durationMs: 4320,
-    timestamp: 'Just now',
-  },
-  {
-    id: 'job-browser-92b4',
-    queue: 'browser-tests',
-    runId: '123e4567-e89b-12d3-a456-426614174000',
-    status: 'active',
-    progress: 80,
-    durationMs: 2150,
-    timestamp: '15s ago',
-  },
-  {
-    id: 'job-agent-6e2c',
-    queue: 'agent-runs',
-    runId: '123e4567-e89b-12d3-a456-426614174011',
-    status: 'completed',
-    progress: 100,
-    durationMs: 14250,
-    timestamp: '2m ago',
-  },
-  {
-    id: 'job-visual-10ad',
-    queue: 'visual-tests',
-    runId: '123e4567-e89b-12d3-a456-426614174011',
-    status: 'completed',
-    progress: 100,
-    durationMs: 1890,
-    timestamp: '3m ago',
-  },
-];
+const INITIAL_JOBS: JobEvent[] = [];
 
 export function QueueTelemetryDashboard() {
   const [queues, setQueues] = useState<QueueData[]>(INITIAL_QUEUES);
@@ -644,7 +607,12 @@ export function QueueTelemetryDashboard() {
           </h3>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {jobs.map((job) => (
+            {jobs.length === 0 ? (
+              <div style={{ padding: '28px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: '13px' }}>
+                All queues are currently idle. Jobs will stream here in real time when pipeline tasks are dispatched.
+              </div>
+            ) : (
+              jobs.map((job) => (
               <div
                 key={job.id}
                 style={{
@@ -702,7 +670,8 @@ export function QueueTelemetryDashboard() {
                   )}
                 </div>
               </div>
-            ))}
+            ))
+            )}
           </div>
         </div>
       </div>

@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { getDatabase } from '@aeds/database';
 import { projects, projectConfigs, repositories, environments } from '@aeds/database';
-import { eq, and, desc } from '@aeds/database';
+import { eq, and, desc, isNull } from '@aeds/database';
 
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
@@ -12,21 +12,21 @@ const CreateProjectSchema = z.object({
   description: z.string().max(500).optional(),
   source: z.object({
     type: z.enum(['FIGMA', 'EXISTING_WEBSITE', 'EXISTING_AEM_PAGE', 'EXISTING_EDS_PROJECT', 'SCREENSHOT', 'NATURAL_LANGUAGE']),
-    url: z.string().url().optional(),
+    url: z.string().optional(),
   }),
   github: z.object({
-    repository: z.string().regex(/^[\w.-]+\/[\w.-]+$/),
+    repository: z.string().min(1),
     defaultBranch: z.string().default('main'),
     token: z.string().optional(), // stored encrypted, never returned
   }),
   aem: z.object({
-    authorUrl: z.string().url(),
-    previewUrl: z.string().url(),
-    environment: z.string(),
+    authorUrl: z.string().optional(),
+    previewUrl: z.string().optional(),
+    environment: z.string().optional().default('production'),
     authoringPath: z.string().optional(),
   }).optional(),
   figma: z.object({
-    fileUrl: z.string().url(),
+    fileUrl: z.string().optional(),
     token: z.string().optional(), // stored encrypted
   }).optional(),
   llm: z.object({
@@ -67,12 +67,41 @@ export const projectsPlugin: FastifyPluginAsync = async (server) => {
     async (request, reply) => {
       try {
         const rows = await db
-          .select()
+          .select({
+            id: projects.id,
+            name: projects.name,
+            description: projects.description,
+            health: projects.health,
+            createdAt: projects.createdAt,
+            updatedAt: projects.updatedAt,
+            lastRunAt: projects.lastRunAt,
+            repo: repositories.fullName,
+            branch: repositories.defaultBranch,
+            sourceType: projectConfigs.sourceType,
+            sourceUrl: projectConfigs.sourceUrl,
+            llmProvider: projectConfigs.llmProvider,
+            aemAuthorUrl: environments.authorUrl,
+            aemEnvironment: environments.previewUrl,
+            aemAuthoringPath: environments.authoringPath,
+          })
           .from(projects)
+          .leftJoin(repositories, eq(repositories.projectId, projects.id))
+          .leftJoin(projectConfigs, eq(projectConfigs.projectId, projects.id))
+          .leftJoin(environments, eq(environments.projectId, projects.id))
+          .where(isNull(projects.archivedAt))
           .orderBy(desc(projects.updatedAt))
           .limit(100);
 
-        return reply.send({ projects: rows });
+        const deduped = Array.from(
+          rows.reduce((map, row) => {
+            if (!map.has(row.id)) {
+              map.set(row.id, row);
+            }
+            return map;
+          }, new Map()).values()
+        );
+
+        return reply.send({ projects: deduped });
       } catch (err) {
         request.log.error({ err }, 'Failed to list projects');
         return reply.code(500).send({ error: 'Failed to list projects' });
@@ -193,20 +222,151 @@ export const projectsPlugin: FastifyPluginAsync = async (server) => {
     async (request, reply) => {
       try {
         const { id } = request.params;
-        const [project] = await db
-          .select()
+        const rows = await db
+          .select({
+            id: projects.id,
+            name: projects.name,
+            description: projects.description,
+            health: projects.health,
+            createdAt: projects.createdAt,
+            updatedAt: projects.updatedAt,
+            lastRunAt: projects.lastRunAt,
+            repo: repositories.fullName,
+            branch: repositories.defaultBranch,
+            sourceType: projectConfigs.sourceType,
+            sourceUrl: projectConfigs.sourceUrl,
+            llmProvider: projectConfigs.llmProvider,
+            llmModel: projectConfigs.llmModel,
+            aemAuthorUrl: environments.authorUrl,
+            aemEnvironment: environments.previewUrl,
+            aemAuthoringPath: environments.authoringPath,
+          })
           .from(projects)
+          .leftJoin(repositories, eq(repositories.projectId, projects.id))
+          .leftJoin(projectConfigs, eq(projectConfigs.projectId, projects.id))
+          .leftJoin(environments, eq(environments.projectId, projects.id))
           .where(eq(projects.id, id))
           .limit(1);
 
-        if (!project) {
+        if (!rows || rows.length === 0) {
           return reply.code(404).send({ error: 'Project not found' });
         }
 
-        return reply.send({ project });
+        return reply.send({ project: rows[0] });
       } catch (err) {
         request.log.error({ err }, 'Failed to get project');
         return reply.code(500).send({ error: 'Failed to get project' });
+      }
+    }
+  );
+
+  // PATCH /api/projects/:id — update project details
+  server.patch<{ Params: { id: string } }>(
+    '/:id',
+    {
+      schema: {
+        tags: ['projects'],
+        summary: 'Update project details',
+        security: [{ bearerAuth: [] }],
+      },
+    },
+    async (request, reply) => {
+      try {
+        const { id } = request.params;
+        const body = request.body as any;
+
+        // 1. Update projects table
+        const updateProjectFields: any = { updatedAt: new Date() };
+        if (body.name !== undefined) updateProjectFields.name = body.name;
+        if (body.description !== undefined) updateProjectFields.description = body.description;
+        if (body.health !== undefined) updateProjectFields.health = body.health;
+
+        await db
+          .update(projects)
+          .set(updateProjectFields)
+          .where(eq(projects.id, id));
+
+        // 2. Update repositories if repo/branch provided
+        const repoName = body.repo || body.github?.repository;
+        const branchName = body.branch || body.github?.defaultBranch;
+        if (repoName || branchName) {
+          const existingRepo = await db.select().from(repositories).where(eq(repositories.projectId, id)).limit(1);
+          if (existingRepo.length > 0) {
+            await db
+              .update(repositories)
+              .set({
+                ...(repoName ? { fullName: repoName } : {}),
+                ...(branchName ? { defaultBranch: branchName } : {}),
+              })
+              .where(eq(repositories.projectId, id));
+          } else if (repoName) {
+            await db.insert(repositories).values({
+              projectId: id,
+              fullName: repoName,
+              defaultBranch: branchName || 'main',
+            });
+          }
+        }
+
+        // 3. Update environments if aem fields provided
+        const aemAuthorUrl = body.aemAuthorUrl || body.aem?.authorUrl;
+        const aemPreviewUrl = body.aemEnvironment || body.aem?.previewUrl;
+        const aemAuthoringPath = body.aemAuthoringPath || body.aem?.authoringPath;
+        if (aemAuthorUrl || aemPreviewUrl || aemAuthoringPath) {
+          const existingEnv = await db.select().from(environments).where(eq(environments.projectId, id)).limit(1);
+          if (existingEnv.length > 0) {
+            await db
+              .update(environments)
+              .set({
+                ...(aemAuthorUrl !== undefined ? { authorUrl: aemAuthorUrl } : {}),
+                ...(aemPreviewUrl !== undefined ? { previewUrl: aemPreviewUrl } : {}),
+                ...(aemAuthoringPath !== undefined ? { authoringPath: aemAuthoringPath } : {}),
+              })
+              .where(eq(environments.projectId, id));
+          } else {
+            await db.insert(environments).values({
+              projectId: id,
+              type: 'aem',
+              name: 'production',
+              authorUrl: aemAuthorUrl,
+              previewUrl: aemPreviewUrl,
+              authoringPath: aemAuthoringPath,
+            });
+          }
+        }
+
+        // 4. Update projectConfigs if sourceType/sourceUrl/llmProvider provided
+        const sourceType = body.sourceType || body.source?.type;
+        const sourceUrl = body.sourceUrl || body.source?.url;
+        const llmProvider = body.llmProvider || body.llm?.provider;
+        const llmModel = body.llmModel || body.llm?.model;
+        if (sourceType || sourceUrl || llmProvider || llmModel) {
+          const existingConfig = await db.select().from(projectConfigs).where(eq(projectConfigs.projectId, id)).limit(1);
+          if (existingConfig.length > 0) {
+            await db
+              .update(projectConfigs)
+              .set({
+                ...(sourceType ? { sourceType } : {}),
+                ...(sourceUrl !== undefined ? { sourceUrl } : {}),
+                ...(llmProvider !== undefined ? { llmProvider } : {}),
+                ...(llmModel !== undefined ? { llmModel } : {}),
+              })
+              .where(eq(projectConfigs.projectId, id));
+          } else if (sourceType) {
+            await db.insert(projectConfigs).values({
+              projectId: id,
+              sourceType,
+              sourceUrl,
+              llmProvider,
+              llmModel,
+            });
+          }
+        }
+
+        return reply.send({ message: 'Project updated successfully' });
+      } catch (err) {
+        request.log.error({ err }, 'Failed to update project');
+        return reply.code(500).send({ error: 'Failed to update project' });
       }
     }
   );

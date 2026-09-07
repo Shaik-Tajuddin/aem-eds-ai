@@ -34,6 +34,7 @@ export const runsPlugin: FastifyPluginAsync = async (server) => {
           .select({
             id: agentRuns.id,
             projectId: agentRuns.projectId,
+            projectName: projects.name,
             status: agentRuns.status,
             source: agentRuns.source,
             progress: agentRuns.progress,
@@ -45,6 +46,7 @@ export const runsPlugin: FastifyPluginAsync = async (server) => {
             createdAt: agentRuns.createdAt,
           })
           .from(agentRuns)
+          .leftJoin(projects, eq(projects.id, agentRuns.projectId))
           .where(conditions.length > 0 ? and(...conditions) : undefined)
           .orderBy(desc(agentRuns.createdAt))
           .limit(Math.min(Number(limit), 200));

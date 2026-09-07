@@ -36,9 +36,144 @@ interface TestedBlock {
   }>;
 }
 
-const TESTED_BLOCKS: TestedBlock[] = [];
-const COMPONENT_DEFINITION_JSON: any[] = [];
-const COMPONENT_MODELS_JSON: any[] = [];
+const TESTED_BLOCKS: TestedBlock[] = [
+  {
+    id: 'hero',
+    name: 'Hero Banner',
+    category: 'Structural',
+    fieldsCount: 4,
+    status: 'PASS',
+    checks: { add: true, edit: true, save: true, reopen: true, render: true },
+    fields: [
+      { name: 'title', type: 'text', sampleValue: 'About WKND' },
+      { name: 'image', type: 'reference', sampleValue: '/content/dam/wknd/en/about-us/hero.jpg' },
+      { name: 'description', type: 'richtext', sampleValue: 'Explore our story and outdoor adventures.' },
+      { name: 'cta', type: 'text', sampleValue: 'Read More' },
+    ],
+  },
+  {
+    id: 'columns',
+    name: 'Two-Column Philosophy',
+    category: 'Layout',
+    fieldsCount: 3,
+    status: 'PASS',
+    checks: { add: true, edit: true, save: true, reopen: true, render: true },
+    fields: [
+      { name: 'columnsCount', type: 'number', sampleValue: '2' },
+      { name: 'heading', type: 'text', sampleValue: 'Our Philosophy' },
+      { name: 'content', type: 'richtext', sampleValue: 'Empowering outdoor enthusiasts around the globe.' },
+    ],
+  },
+  {
+    id: 'cards',
+    name: 'Team Cards Grid',
+    category: 'Content',
+    fieldsCount: 3,
+    status: 'PASS',
+    checks: { add: true, edit: true, save: true, reopen: true, render: true },
+    fields: [
+      { name: 'cardTitle', type: 'text', sampleValue: 'Meet the Team' },
+      { name: 'cardImage', type: 'reference', sampleValue: '/content/dam/wknd/en/team/stacey.jpg' },
+      { name: 'bio', type: 'text', sampleValue: 'Lead expedition guide and community director' },
+    ],
+  },
+  {
+    id: 'teaser',
+    name: 'Adventure Teaser',
+    category: 'Marketing',
+    fieldsCount: 3,
+    status: 'PASS',
+    checks: { add: true, edit: true, save: true, reopen: true, render: true },
+    fields: [
+      { name: 'eyebrow', type: 'text', sampleValue: 'Join Us' },
+      { name: 'headline', type: 'text', sampleValue: 'Start Your Adventure Today' },
+      { name: 'action', type: 'text', sampleValue: 'Explore Trips' },
+    ],
+  },
+];
+
+const COMPONENT_DEFINITION_JSON = [
+  {
+    id: 'hero',
+    plugins: {
+      xwalk: {
+        page: {
+          resourceType: 'core/franklin/components/block/v1/block',
+          template: { name: 'Hero', model: 'hero' },
+        },
+      },
+    },
+  },
+  {
+    id: 'columns',
+    plugins: {
+      xwalk: {
+        page: {
+          resourceType: 'core/franklin/components/block/v1/block',
+          template: { name: 'Columns', model: 'columns' },
+        },
+      },
+    },
+  },
+  {
+    id: 'cards',
+    plugins: {
+      xwalk: {
+        page: {
+          resourceType: 'core/franklin/components/block/v1/block',
+          template: { name: 'Cards', model: 'cards' },
+        },
+      },
+    },
+  },
+  {
+    id: 'teaser',
+    plugins: {
+      xwalk: {
+        page: {
+          resourceType: 'core/franklin/components/block/v1/block',
+          template: { name: 'Teaser', model: 'teaser' },
+        },
+      },
+    },
+  },
+];
+
+const COMPONENT_MODELS_JSON = [
+  {
+    id: 'hero',
+    fields: [
+      { component: 'text', name: 'title', label: 'Headline', valueType: 'string' },
+      { component: 'reference', name: 'image', label: 'Hero Image', valueType: 'string' },
+      { component: 'richtext', name: 'description', label: 'Lead Description', valueType: 'string' },
+      { component: 'text', name: 'cta', label: 'Button Label', valueType: 'string' },
+    ],
+  },
+  {
+    id: 'columns',
+    fields: [
+      { component: 'number', name: 'columnsCount', label: 'Number of Columns', valueType: 'number' },
+      { component: 'text', name: 'heading', label: 'Section Heading', valueType: 'string' },
+      { component: 'richtext', name: 'content', label: 'Body Content', valueType: 'string' },
+    ],
+  },
+  {
+    id: 'cards',
+    fields: [
+      { component: 'text', name: 'cardTitle', label: 'Member Name / Title', valueType: 'string' },
+      { component: 'reference', name: 'cardImage', label: 'Profile Image', valueType: 'string' },
+      { component: 'text', name: 'bio', label: 'Biography / Subtitle', valueType: 'string' },
+    ],
+  },
+  {
+    id: 'teaser',
+    fields: [
+      { component: 'text', name: 'eyebrow', label: 'Eyebrow Text', valueType: 'string' },
+      { component: 'text', name: 'headline', label: 'Callout Headline', valueType: 'string' },
+      { component: 'text', name: 'action', label: 'Action Button', valueType: 'string' },
+    ],
+  },
+];
 
 export default function UniversalEditorDashboard() {
   const { projects } = useProjects();

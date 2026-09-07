@@ -15,6 +15,7 @@ import { projectsPlugin } from './routes/projects.js';
 import { runsPlugin } from './routes/runs.js';
 import { eventsPlugin } from './routes/events.js';
 import { githubPlugin } from './routes/github.js';
+import { knowledgePlugin } from './routes/knowledge.js';
 
 const isDev = process.env['NODE_ENV'] !== 'production';
 const port = Number(process.env['API_PORT'] ?? 3001);
@@ -129,19 +130,22 @@ export async function buildServer() {
   await server.register(runsPlugin, { prefix: '/api/runs' });
   await server.register(eventsPlugin, { prefix: '/api/events' });
   await server.register(githubPlugin, { prefix: '/api/github' });
+  await server.register(knowledgePlugin, { prefix: '/api/knowledge' });
 
   return server;
 }
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 
+let currentServer: Awaited<ReturnType<typeof buildServer>> | null = null;
+
 async function start() {
   try {
-    const server = await buildServer();
-    await server.listen({ port, host });
-    server.log.info(`AI EDS Developer API running on http://${host}:${port}`);
+    currentServer = await buildServer();
+    await currentServer.listen({ port, host });
+    currentServer.log.info(`AI EDS Developer API running on http://${host}:${port}`);
     if (isDev) {
-      server.log.info(`OpenAPI docs: http://localhost:${port}/docs`);
+      currentServer.log.info(`OpenAPI docs: http://localhost:${port}/docs`);
     }
   } catch (err) {
     console.error('Failed to start API server:', err);
@@ -150,15 +154,17 @@ async function start() {
 }
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received — shutting down gracefully');
+const gracefulShutdown = async () => {
+  if (currentServer) {
+    try {
+      await currentServer.close();
+    } catch {}
+  }
   process.exit(0);
-});
+};
 
-process.on('SIGINT', () => {
-  console.log('SIGINT received — shutting down gracefully');
-  process.exit(0);
-});
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
 
 if (process.env['NODE_ENV'] !== 'test') {
   start();

@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: 'New Project | AI EDS Developer' };
 export default function NewProjectPage() {
   return (
     <>
-      <TopBar title="New Project" subtitle="Connect your EDS project to AI" />
+      <TopBar title="New Project" subtitle="Connect your EDS project to AI" showNewProject={false} />
       <div
         style={{
           flex: 1,

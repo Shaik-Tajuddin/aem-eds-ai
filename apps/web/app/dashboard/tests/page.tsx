@@ -50,12 +50,20 @@ const TEST_SUITES = [
   },
 ];
 
+import { useProjects } from '../../../lib/project-store';
+
 export default function TestsPage() {
+  const { projects } = useProjects();
+  const currentProject = projects[0];
   const [isRunning, setIsRunning] = useState(false);
+  const [hasRun, setHasRun] = useState(false);
 
   const handleRerun = () => {
     setIsRunning(true);
-    setTimeout(() => setIsRunning(false), 1200);
+    setTimeout(() => {
+      setIsRunning(false);
+      setHasRun(true);
+    }, 1200);
   };
 
   return (
@@ -80,8 +88,12 @@ export default function TestsPage() {
               <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', fontWeight: 500, textTransform: 'uppercase' }}>Total Test Cases</span>
               <FlaskConical size={16} color="var(--accent-primary)" />
             </div>
-            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>86 Tests</div>
-            <div style={{ fontSize: '11px', color: 'var(--color-success)', marginTop: '4px' }}>86 passed (100% pass rate)</div>
+            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
+              {hasRun ? '86 Tests' : '0 Tests'}
+            </div>
+            <div style={{ fontSize: '11px', color: hasRun ? 'var(--color-success)' : 'var(--text-tertiary)', marginTop: '4px' }}>
+              {hasRun ? '86 passed (100% pass rate)' : 'Awaiting test run'}
+            </div>
           </div>
 
           <div className="card" style={{ padding: '18px 20px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
@@ -89,8 +101,12 @@ export default function TestsPage() {
               <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', fontWeight: 500, textTransform: 'uppercase' }}>Lighthouse LCP</span>
               <Gauge size={16} color="var(--color-success)" />
             </div>
-            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>412 ms</div>
-            <div style={{ fontSize: '11px', color: 'var(--color-success)', marginTop: '4px' }}>Target &lt; 2500ms (100/100 score)</div>
+            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
+              {hasRun ? '412 ms' : '—'}
+            </div>
+            <div style={{ fontSize: '11px', color: hasRun ? 'var(--color-success)' : 'var(--text-tertiary)', marginTop: '4px' }}>
+              {hasRun ? 'Target < 2500ms (100/100 score)' : 'Pending audit'}
+            </div>
           </div>
 
           <div className="card" style={{ padding: '18px 20px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
@@ -98,8 +114,12 @@ export default function TestsPage() {
               <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', fontWeight: 500, textTransform: 'uppercase' }}>WCAG 2.1 AA</span>
               <CheckCircle2 size={16} color="var(--color-ai)" />
             </div>
-            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>100 / 100</div>
-            <div style={{ fontSize: '11px', color: 'var(--color-ai)', marginTop: '4px' }}>Color contrast 7.1:1 auto-healed</div>
+            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
+              {hasRun ? '100 / 100' : '—'}
+            </div>
+            <div style={{ fontSize: '11px', color: hasRun ? 'var(--color-ai)' : 'var(--text-tertiary)', marginTop: '4px' }}>
+              {hasRun ? 'Color contrast 7.1:1 verified' : 'Pending accessibility scan'}
+            </div>
           </div>
 
           <div className="card" style={{ padding: '18px 20px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
@@ -113,36 +133,74 @@ export default function TestsPage() {
         </div>
 
         {/* Test Suites */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {TEST_SUITES.map((suite) => (
-            <div key={suite.name} className="card" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-              <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <FlaskConical size={16} color="var(--accent-primary)" />
-                  <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>{suite.name}</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}>Duration: {suite.duration}</span>
-                  <span className="badge badge-success" style={{ fontSize: '11px' }}>
-                    {suite.passedTests} / {suite.totalTests} Passed
-                  </span>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                {suite.tests.map((t, idx) => (
-                  <div key={idx} style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', fontSize: '13px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <CheckCircle2 size={14} color="var(--color-success)" />
-                      <span style={{ color: 'var(--text-primary)' }}>{t.name}</span>
-                    </div>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--text-tertiary)' }}>{t.time}</span>
-                  </div>
-                ))}
-              </div>
+        {!hasRun ? (
+          <div
+            className="card"
+            style={{
+              padding: '48px 24px',
+              textAlign: 'center',
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 'var(--radius-lg)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '14px',
+            }}
+          >
+            <FlaskConical size={32} color="var(--accent-primary)" />
+            <div style={{ maxWidth: '440px' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 6px 0' }}>
+                No Test Runs Recorded
+              </h3>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                {currentProject
+                  ? `Execute test suites on ${currentProject.name} to audit block DOM decoration, mobile responsiveness, and Lighthouse performance metrics.`
+                  : 'Execute test suites to audit block DOM decoration, mobile responsiveness, and Lighthouse performance metrics.'}
+              </p>
             </div>
-          ))}
-        </div>
+            <button
+              onClick={handleRerun}
+              disabled={isRunning}
+              className="btn btn-primary btn-sm"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}
+            >
+              <RotateCw size={13} className={isRunning ? 'animate-spin' : ''} />
+              <span>{isRunning ? 'Running Suites...' : 'Run All Tests'}</span>
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {TEST_SUITES.map((suite) => (
+              <div key={suite.name} className="card" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <FlaskConical size={16} color="var(--accent-primary)" />
+                    <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>{suite.name}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}>Duration: {suite.duration}</span>
+                    <span className="badge badge-success" style={{ fontSize: '11px' }}>
+                      {suite.passedTests} / {suite.totalTests} Passed
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  {suite.tests.map((t, idx) => (
+                    <div key={idx} style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', fontSize: '13px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <CheckCircle2 size={14} color="var(--color-success)" />
+                        <span style={{ color: 'var(--text-primary)' }}>{t.name}</span>
+                      </div>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--text-tertiary)' }}>{t.time}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
       </div>
     </div>

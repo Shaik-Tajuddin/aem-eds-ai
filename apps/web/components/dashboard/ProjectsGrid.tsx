@@ -126,7 +126,8 @@ function ProjectRow({ project }: { project: ProjectCard }) {
             }}
           />
           <div style={{ minWidth: 0 }}>
-            <div
+            <Link
+              href={`/dashboard/projects/${project.id}` as any}
               style={{
                 fontSize: '13px',
                 fontWeight: 600,
@@ -134,10 +135,11 @@ function ProjectRow({ project }: { project: ProjectCard }) {
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
+                textDecoration: 'none',
               }}
             >
               {project.name}
-            </div>
+            </Link>
             <div
               style={{
                 fontSize: '11px',
@@ -199,11 +201,10 @@ function ProjectRow({ project }: { project: ProjectCard }) {
         <Link
           href={`/dashboard/projects/${project.id}` as any}
           className="btn btn-secondary btn-xs"
-
-          style={{ flexShrink: 0 }}
+          style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
         >
           <ExternalLink size={11} />
-          Open
+          Open Project
         </Link>
       </div>
     </div>

@@ -34,8 +34,8 @@ const TOOLS: ToolItem[] = [
     riskLevel: 'MEDIUM',
     description: 'Creates atomic Git commits directly using the GitHub Git Data API tree endpoints.',
     approvalRequired: false,
-    totalCalls: 148,
-    lastExecuted: '4 mins ago',
+    totalCalls: 0,
+    lastExecuted: 'Ready',
   },
   {
     id: 'tool-git-pr',
@@ -44,8 +44,8 @@ const TOOLS: ToolItem[] = [
     riskLevel: 'HIGH',
     description: 'Opens a formal Pull Request on the target EDS repository with synthesized block evidence.',
     approvalRequired: true,
-    totalCalls: 42,
-    lastExecuted: '12 mins ago',
+    totalCalls: 0,
+    lastExecuted: 'Ready',
   },
   {
     id: 'tool-browser-nav',
@@ -54,8 +54,8 @@ const TOOLS: ToolItem[] = [
     riskLevel: 'LOW',
     description: 'Launches headless Chromium to navigate to EDS preview URLs and verify block decoration DOM.',
     approvalRequired: false,
-    totalCalls: 312,
-    lastExecuted: '6 mins ago',
+    totalCalls: 0,
+    lastExecuted: 'Ready',
   },
   {
     id: 'tool-visual-diff',
@@ -64,8 +64,8 @@ const TOOLS: ToolItem[] = [
     riskLevel: 'LOW',
     description: 'Runs pixelmatch 32-bit delta comparison between candidate screenshots and Figma baselines.',
     approvalRequired: false,
-    totalCalls: 215,
-    lastExecuted: '6 mins ago',
+    totalCalls: 0,
+    lastExecuted: 'Ready',
   },
   {
     id: 'tool-ue-validate',
@@ -74,8 +74,8 @@ const TOOLS: ToolItem[] = [
     riskLevel: 'LOW',
     description: 'Validates _component-definition.json and _component-models.json against Adobe schemas.',
     approvalRequired: false,
-    totalCalls: 96,
-    lastExecuted: '15 mins ago',
+    totalCalls: 0,
+    lastExecuted: 'Ready',
   },
   {
     id: 'tool-secret-redact',
@@ -84,8 +84,8 @@ const TOOLS: ToolItem[] = [
     riskLevel: 'CRITICAL',
     description: 'High-speed regex engine sanitizing ghp_*, sk-*, and bearer tokens before logs and DB writes.',
     approvalRequired: false,
-    totalCalls: 1420,
-    lastExecuted: 'Just now',
+    totalCalls: 0,
+    lastExecuted: 'Ready',
   },
 ];
 
@@ -136,8 +136,8 @@ export default function ToolsPage() {
               <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', fontWeight: 500, textTransform: 'uppercase' }}>Total Invocations</span>
               <Terminal size={16} color="var(--color-ai)" />
             </div>
-            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>2,233 Calls</div>
-            <div style={{ fontSize: '11px', color: 'var(--color-ai)', marginTop: '4px' }}>Avg latency: 42ms</div>
+            <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>0 Calls</div>
+            <div style={{ fontSize: '11px', color: 'var(--color-ai)', marginTop: '4px' }}>Awaiting pipeline execution</div>
           </div>
 
           <div className="card" style={{ padding: '18px 20px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
