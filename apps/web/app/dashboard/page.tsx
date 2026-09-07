@@ -15,44 +15,67 @@ export default function OverviewPage() {
   const [liveRuns, setLiveRuns] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch('/api/backend/runs')
-      .then((r) => r.json())
-      .then((data) => {
-        if (data && Array.isArray(data.runs)) {
-          setLiveRuns(
-            data.runs.map((r: any) => ({
-              id: r.id,
-              projectId: r.projectId,
-              projectName: r.projectName || 'Active EDS Project',
-              status: r.status === 'COMPLETED' ? 'PASSED' : r.status,
-              source: r.source || 'EXISTING_WEBSITE',
-              currentStage: r.currentStage || 'COMPLETED',
-              stageIndex: 13,
-              totalStages: 13,
-              iteration: r.iteration || 1,
-              maxIterations: r.maxIterations || 5,
-              testsPassed: 24,
-              testsTotal: 24,
-              visualScore: 98.4,
-              durationMs: r.durationMs || 180000,
-              branch: 'main',
-              repo: 'adobe/aem-boilerplate',
-              prUrl: 'https://github.com/adobe/aem-boilerplate/pull/1',
-              startedAt: r.startedAt || new Date().toISOString(),
-            }))
-          );
-        }
-      })
-      .catch((e) => console.warn('Failed to load runs:', e));
+    const TERMINAL = new Set([
+      'WAITING_APPROVAL',
+      'DEPLOYED',
+      'FAILED',
+      'CANCELLED',
+      'LIMIT_REACHED',
+      'PR_CREATED',
+      'COMPLETED',
+    ]);
+
+    const load = () => {
+      fetch('/api/backend/runs')
+        .then((r) => r.json())
+        .then((data) => {
+          if (data && Array.isArray(data.runs)) {
+            setLiveRuns(
+              data.runs.map((r: any) => {
+                const progressRaw = typeof r.progress === 'number' ? r.progress : 0;
+                const progress =
+                  progressRaw <= 1 && progressRaw > 0
+                    ? Math.round(progressRaw * 100)
+                    : Math.round(progressRaw);
+                const isActive = !TERMINAL.has(r.status);
+                return {
+                  id: r.id,
+                  projectId: r.projectId,
+                  projectName: r.projectName || 'EDS Project',
+                  status: isActive ? 'RUNNING' : r.status === 'FAILED' || r.status === 'CANCELLED' ? 'FAILED' : 'PASSED',
+                  source: r.source || 'EXISTING_WEBSITE',
+                  currentStage: r.currentStage || r.status || '—',
+                  stageIndex: Math.max(1, Math.round((progress / 100) * 13)),
+                  totalStages: 13,
+                  progress,
+                  iteration: r.iteration || 0,
+                  maxIterations: r.maxIterations || 5,
+                  durationMs: r.durationMs || 0,
+                  branch: r.branch || 'main',
+                  repo: '—',
+                  prUrl: undefined,
+                  startedAt: r.startedAt || r.createdAt || new Date().toISOString(),
+                };
+              })
+            );
+          }
+        })
+        .catch((e) => console.warn('Failed to load runs:', e));
+    };
+
+    load();
+    const interval = setInterval(load, 2500);
+    return () => clearInterval(interval);
   }, []);
 
+  const activeCount = liveRuns.filter((r) => r.status === 'RUNNING').length;
   const kpiItems = [
-    { id: 'active-runs', label: 'Active Runs', value: String(liveRuns.filter((r) => r.status === 'RUNNING').length), subtext: 'in pipeline', trend: 'live' as const },
+    { id: 'active-runs', label: 'Active Runs', value: String(activeCount), subtext: 'in pipeline', trend: 'live' as const },
     { id: 'projects', label: 'Projects', value: String(projects.length), subtext: `${projects.length} connected`, trend: 'up' as const },
-    { id: 'success-rate', label: 'Success Rate', value: '98.4%', subtext: 'Target ≥95%', trend: 'up' as const },
-    { id: 'open-issues', label: 'Open Issues', value: '0', subtext: 'Zero defects', trend: 'neutral' as const },
-    { id: 'avg-iterations', label: 'Avg Fix Iterations', value: '1.0', subtext: 'per run', trend: 'neutral' as const },
-    { id: 'avg-runtime', label: 'Avg Run Time', value: '3m 42s', subtext: 'historical', trend: 'neutral' as const },
+    { id: 'success-rate', label: 'Success Rate', value: '—', subtext: 'from live runs', trend: 'neutral' as const },
+    { id: 'open-issues', label: 'Open Issues', value: '0', subtext: 'tracked', trend: 'neutral' as const },
+    { id: 'avg-iterations', label: 'Avg Fix Iterations', value: '—', subtext: 'per run', trend: 'neutral' as const },
+    { id: 'avg-runtime', label: 'Avg Run Time', value: '—', subtext: 'live', trend: 'neutral' as const },
   ];
 
   return (
@@ -121,7 +144,7 @@ export default function OverviewPage() {
         </div>
 
         {/* Active Agent Runs */}
-        <ActiveRunsSection runs={liveRuns} />
+        <ActiveRunsSection runs={liveRuns.filter((r) => r.status === 'RUNNING') as any} />
 
         {/* KPI Strip */}
         <KPIStrip items={kpiItems} />

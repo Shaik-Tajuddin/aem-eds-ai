@@ -1,10 +1,156 @@
 // ============================================================
 // @aeds/agent — Universal Editor Agent
-// Generates component definitions and models for AEM Universal Editor
+// Generates component definitions and models for AEM authoring
 // ============================================================
 
 import { RunStatus } from '@aeds/shared';
+import { GitHubAdapter, GitHubError, GitHubErrorCode, GitHubTokenManager } from '@aeds/github';
 import { BaseAgent, type RunExecutionContext, type AgentExecutionResult } from './base.js';
+
+const SECTION_MODEL_PATH = 'models/_section.json';
+
+const DEFAULT_SECTION_COMPONENTS = ['text', 'image', 'button', 'title', 'fragment'] as const;
+
+type SectionModelDoc = {
+  definitions?: unknown[];
+  models?: unknown[];
+  filters?: Array<{ id?: string; components?: string[] }>;
+};
+
+function collectCreatedBlockIds(context: RunExecutionContext): string[] {
+  const fromFiles = Array.from(context.generatedFiles.keys())
+    .map((p) => {
+      const match = /^blocks\/([^/]+)\//.exec(p);
+      return match?.[1];
+    })
+    .filter((name): name is string => Boolean(name));
+
+  const fromDetected = (context.detectedBlocks || []).filter(
+    (b) => !['header', 'footer'].includes(b),
+  );
+
+  return Array.from(new Set([...fromFiles, ...fromDetected])).sort();
+}
+
+function buildSectionModel(blockIds: string[]): string {
+  const components = Array.from(new Set([...DEFAULT_SECTION_COMPONENTS, ...blockIds]));
+
+  return JSON.stringify(
+    {
+      definitions: [
+        {
+          title: 'Section',
+          id: 'section',
+          plugins: {
+            xwalk: {
+              page: {
+                resourceType: 'core/franklin/components/section/v1/section',
+                template: {
+                  model: 'section',
+                },
+              },
+            },
+          },
+        },
+      ],
+      models: [
+        {
+          id: 'section',
+          fields: [
+            {
+              component: 'text',
+              name: 'name',
+              label: 'Section Name',
+              description: 'The label shown for this section in the Content Tree',
+            },
+            {
+              component: 'multiselect',
+              name: 'style',
+              label: 'Style',
+              options: [{ name: 'Highlight', value: 'highlight' }],
+            },
+          ],
+        },
+      ],
+      filters: [
+        {
+          id: 'section',
+          components,
+        },
+      ],
+    },
+    null,
+    2,
+  );
+}
+
+/** Append created block IDs that are NotFound in the existing section filter. */
+function mergeMissingBlocks(existingJson: string, blockIds: string[]): {
+  changed: boolean;
+  missing: string[];
+  content: string;
+} {
+  let doc: SectionModelDoc;
+  try {
+    doc = JSON.parse(existingJson) as SectionModelDoc;
+  } catch {
+    return { changed: true, missing: blockIds, content: buildSectionModel(blockIds) };
+  }
+
+  if (!Array.isArray(doc.filters)) doc.filters = [];
+  let section = doc.filters.find((f) => f.id === 'section');
+  if (!section) {
+    section = { id: 'section', components: [...DEFAULT_SECTION_COMPONENTS] };
+    doc.filters.push(section);
+  }
+  if (!Array.isArray(section.components)) section.components = [];
+
+  const missing = blockIds.filter((id) => !section!.components!.includes(id));
+  if (missing.length === 0) {
+    return { changed: false, missing: [], content: existingJson };
+  }
+
+  section.components = Array.from(new Set([...section.components, ...missing]));
+  return {
+    changed: true,
+    missing,
+    content: `${JSON.stringify(doc, null, 2)}\n`,
+  };
+}
+
+async function readRepoFile(
+  context: RunExecutionContext,
+  path: string,
+): Promise<{ status: 'not_found' | 'found' | 'unavailable'; content?: string }> {
+  if (context.skipGitHubPublish || process.env.VITEST || process.env.NODE_ENV === 'test') {
+    return { status: 'not_found' };
+  }
+  if (!new GitHubTokenManager().hasToken()) {
+    return { status: 'not_found' };
+  }
+
+  try {
+    const adapter = new GitHubAdapter();
+    const file = await adapter.getFileContent(
+      context.repoOwner,
+      context.repoName,
+      path,
+      context.baseBranch,
+    );
+    return { status: 'found', content: file.content };
+  } catch (err: unknown) {
+    if (err instanceof GitHubError && err.code === GitHubErrorCode.NOT_FOUND) {
+      return { status: 'not_found' };
+    }
+    return { status: 'unavailable' };
+  }
+}
+
+async function readSectionModel(
+  context: RunExecutionContext,
+): Promise<{ status: 'not_found' | 'found' | 'unavailable'; content?: string }> {
+  return readRepoFile(context, SECTION_MODEL_PATH);
+}
 
 export class UniversalEditorAgent extends BaseAgent {
   public readonly id = 'agent-ue';
@@ -15,59 +161,50 @@ export class UniversalEditorAgent extends BaseAgent {
   public async execute(context: RunExecutionContext): Promise<AgentExecutionResult> {
     context.log('Generating Universal Editor authoring models...');
 
+    const createdBlocks = collectCreatedBlockIds(context);
+
     const componentDefinition = {
       groups: [
         {
           id: 'eds-blocks',
           title: 'EDS Blocks',
-          components: [
-            {
-              id: 'hero',
-              title: 'Hero Banner',
-              description: 'Full-bleed hero banner with title, CTA, and background image',
-              plugins: {
-                xwalk: {
-                  page: {
-                    resourceType: 'core/franklin/components/block/v1/block',
-                    template: {
-                      name: 'Hero',
-                      model: 'hero',
-                    },
+          components: createdBlocks.map((id) => ({
+            id,
+            title: id.charAt(0).toUpperCase() + id.slice(1),
+            description: `${id} EDS block`,
+            plugins: {
+              xwalk: {
+                page: {
+                  resourceType: 'core/franklin/components/block/v1/block',
+                  template: {
+                    name: id.charAt(0).toUpperCase() + id.slice(1),
+                    model: id,
                   },
                 },
               },
             },
-          ],
+          })),
         },
       ],
     };
 
-    const componentModels = [
-      {
-        id: 'hero',
-        fields: [
-          {
-            component: 'text',
-            name: 'title',
-            label: 'Headline',
-            valueType: 'string',
-            required: true,
-          },
-          {
-            component: 'richtext',
-            name: 'text',
-            label: 'Description',
-            valueType: 'string',
-          },
-          {
-            component: 'reference',
-            name: 'image',
-            label: 'Hero Image',
-            valueType: 'string',
-          },
-        ],
-      },
-    ];
+    const componentModels = createdBlocks.map((id) => ({
+      id,
+      fields: [
+        {
+          component: 'text',
+          name: 'title',
+          label: 'Title',
+          valueType: 'string',
+        },
+        {
+          component: 'richtext',
+          name: 'text',
+          label: 'Body',
+          valueType: 'string',
+        },
+      ],
+    }));
 
     context.generatedFiles.set('_component-definition.json', {
       path: '_component-definition.json',
@@ -81,20 +218,132 @@ export class UniversalEditorAgent extends BaseAgent {
       operation: 'create',
     });
 
+    const filesGenerated = ['_component-definition.json', '_component-models.json'];
+
+    // Per-block XWalk model files — only when NotFound (build:json merges blocks/*/_*.json)
+    for (const id of createdBlocks) {
+      const title = id.charAt(0).toUpperCase() + id.slice(1);
+      const blockModelPath = `blocks/${id}/_${id}.json`;
+      if (context.generatedFiles.has(blockModelPath)) continue;
+
+      const existing = await readRepoFile(context, blockModelPath);
+      if (existing.status === 'found') {
+        context.log(`${blockModelPath} already exists — skipped.`);
+        continue;
+      }
+      if (existing.status === 'unavailable') {
+        context.log(`${blockModelPath} could not be checked — skipped.`, 'warn');
+        continue;
+      }
+
+      context.generatedFiles.set(blockModelPath, {
+        path: blockModelPath,
+        content: JSON.stringify(
+          {
+            definitions: [
+              {
+                title,
+                id,
+                plugins: {
+                  xwalk: {
+                    page: {
+                      resourceType: 'core/franklin/components/block/v1/block',
+                      template: {
+                        name: title,
+                        model: id,
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+            models: [
+              {
+                id,
+                fields: [
+                  {
+                    component: 'text',
+                    valueType: 'string',
+                    name: 'title',
+                    label: 'Title',
+                  },
+                  {
+                    component: 'richtext',
+                    name: 'text',
+                    label: 'Text',
+                  },
+                ],
+              },
+            ],
+            filters: [],
+          },
+          null,
+          2,
+        ),
+        operation: 'create',
+      });
+      filesGenerated.push(blockModelPath);
+      context.log(`${blockModelPath} NotFound — created block UE model.`);
+    }
+
+    let sectionPlan =
+      `Skip ${SECTION_MODEL_PATH} (unavailable or unchanged)`;
+
+    // models/_section.json:
+    // - NotFound → create with list of created blocks
+    // - Found → add only block IDs that are NotFound in filters.section.components
+    const sectionLookup = await readSectionModel(context);
+
+    if (sectionLookup.status === 'not_found') {
+      context.generatedFiles.set(SECTION_MODEL_PATH, {
+        path: SECTION_MODEL_PATH,
+        content: buildSectionModel(createdBlocks),
+        operation: 'create',
+      });
+      filesGenerated.push(SECTION_MODEL_PATH);
+      sectionPlan = `Create ${SECTION_MODEL_PATH} (NotFound) with blocks: ${createdBlocks.join(', ') || '(none)'}`;
+      context.log(
+        `${SECTION_MODEL_PATH} NotFound — created section filter with blocks: ${createdBlocks.join(', ') || '(none)'}`,
+      );
+    } else if (sectionLookup.status === 'found' && sectionLookup.content) {
+      const merged = mergeMissingBlocks(sectionLookup.content, createdBlocks);
+      if (merged.changed) {
+        context.generatedFiles.set(SECTION_MODEL_PATH, {
+          path: SECTION_MODEL_PATH,
+          content: merged.content,
+          operation: 'modify',
+        });
+        filesGenerated.push(SECTION_MODEL_PATH);
+        sectionPlan = `Update ${SECTION_MODEL_PATH}: add NotFound blocks [${merged.missing.join(', ')}]`;
+        context.log(
+          `${SECTION_MODEL_PATH} exists — added missing block(s) to section filter: ${merged.missing.join(', ')}`,
+        );
+      } else {
+        sectionPlan = `${SECTION_MODEL_PATH} already lists all created blocks — no change`;
+        context.log(`${SECTION_MODEL_PATH} already lists all created blocks — skipped.`);
+      }
+    } else {
+      context.log(
+        `${SECTION_MODEL_PATH} could not be read — skipped section filter update.`,
+        'warn',
+      );
+    }
+
     const decision = this.createDecision(
       context,
       'Generate Universal Editor authoring contracts',
       [
         'Produce _component-definition.json with block categorization',
-        'Produce _component-models.json with field definitions for hero block',
+        'Produce _component-models.json with field definitions for generated blocks',
+        sectionPlan,
       ],
-      'Universal Editor schemas generated to enable immediate WYSIWYG authoring in AEM.'
+      `Universal Editor schemas generated for ${createdBlocks.length} block(s).`,
     );
 
     return {
       success: true,
       decision,
-      filesGenerated: ['_component-definition.json', '_component-models.json'],
+      filesGenerated,
     };
   }
 }

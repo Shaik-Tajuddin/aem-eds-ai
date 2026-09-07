@@ -88,21 +88,45 @@ export class EdsDeveloperAgent extends BaseAgent {
       operation: 'create',
     });
 
+    const blockNames = (context.detectedBlocks || ['hero', 'columns', 'cards']).filter(
+      (b) => !['header', 'footer'].includes(b) && b !== 'hero',
+    );
+
+    for (const block of blockNames) {
+      const jsPath = `blocks/${block}/${block}.js`;
+      const cssPath = `blocks/${block}/${block}.css`;
+      context.generatedFiles.set(jsPath, {
+        path: jsPath,
+        content: `export default function decorate(block) {\n  block.classList.add('${block}-block');\n  block.dataset.aueType = 'component';\n  block.dataset.aueModel = '${block}';\n}\n`,
+        operation: 'create',
+      });
+      context.generatedFiles.set(cssPath, {
+        path: cssPath,
+        content: `.${block}-wrapper { width: 100%; }\n.${block} { display: block; }\n`,
+        operation: 'create',
+      });
+    }
+
+    const filesGenerated = Array.from(context.generatedFiles.keys()).filter((p) =>
+      p.startsWith('blocks/'),
+    );
+
     const decision = this.createDecision(
       context,
-      'Implement EDS Hero Block and Scoped CSS',
+      'Implement EDS blocks and scoped CSS from analyzed page structure',
       [
         'Create blocks/hero/hero.js with standard decorate(block) entrypoint',
         'Create blocks/hero/hero.css with mobile-first grid layout and CSS variables',
-        'Ensure zero external runtime dependencies and 100/100 Lighthouse performance',
+        `Generate additional blocks: ${blockNames.join(', ') || 'none'}`,
+        'Ensure zero external runtime dependencies',
       ],
-      'Generated compliant vanilla JS block decorator and performant scoped stylesheet.'
+      `Generated ${filesGenerated.length} block file(s) for EDS pipeline.`,
     );
 
     return {
       success: true,
       decision,
-      filesGenerated: ['blocks/hero/hero.js', 'blocks/hero/hero.css'],
+      filesGenerated,
     };
   }
 }

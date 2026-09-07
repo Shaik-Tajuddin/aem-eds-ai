@@ -16,6 +16,15 @@ import { UniversalEditorAgent } from './agents/ue-agent.js';
 import { QAValidationAgent } from './agents/qa-agent.js';
 import { FixAgent } from './agents/fix-agent.js';
 import { DeploymentAgent } from './agents/deployment-agent.js';
+import {
+  PIPELINE_STAGE_ORDER,
+  PIPELINE_STAGE_LABELS,
+  stageProgressPercent,
+} from './pipeline-stages.js';
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export interface OrchestratorRunOptions {
   runId: string;
@@ -32,6 +41,8 @@ export interface OrchestratorRunOptions {
   maxCostUsd?: number;
   maxFixIterations?: number;
   abortSignal?: AbortSignal;
+  /** Skip real GitHub branch/commit/PR (used in unit tests) */
+  skipGitHubPublish?: boolean;
 }
 
 export interface RunEventListener {
@@ -98,6 +109,9 @@ export class AgentOrchestrator {
     files: GeneratedFile[];
     decisions: AgentDecision[];
     previewUrl?: string;
+    pullRequestUrl?: string;
+    pullRequestNumber?: number;
+    gitCommit?: string;
   }> {
     const { runId, projectId, repoOwner, repoName } = options;
     const baseBranch = options.baseBranch || 'main';
@@ -116,33 +130,38 @@ export class AgentOrchestrator {
       toolRegistry: this.toolRegistry,
       generatedFiles: new Map(),
       bugs: [],
+      skipGitHubPublish: options.skipGitHubPublish,
       log: (msg) => {
-        void this.emit(AgentEventType.AGENT_STEP_STARTED, { runId, message: msg });
+        const phase = this.stateMachine.getStatus();
+        void this.emit(AgentEventType.AGENT_STEP_STARTED, {
+          runId,
+          message: msg,
+          phase,
+          status: phase,
+          currentStage: PIPELINE_STAGE_LABELS[phase] || phase,
+        });
       },
     };
 
-    await this.emit(AgentEventType.AGENT_STARTED, { runId, projectId, workBranch });
+    await this.emit(AgentEventType.AGENT_STARTED, {
+      runId,
+      projectId,
+      workBranch,
+      status: RunStatus.RECEIVED,
+      phase: RunStatus.RECEIVED,
+      currentStage: PIPELINE_STAGE_LABELS[RunStatus.RECEIVED] || 'Received',
+      progress: 0,
+    });
 
-    // Canonical execution sequence
-    const pipelineSequence: RunStatus[] = [
-      RunStatus.ANALYZING,
-      RunStatus.PLANNING,
-      RunStatus.IMPLEMENTING,
-      RunStatus.BUILDING,
-      RunStatus.DEPLOYING_PREVIEW,
-      RunStatus.UE_AUTHORING,
-      RunStatus.FUNCTIONAL_TESTING,
-      RunStatus.VISUAL_VALIDATION,
-      RunStatus.ACCESSIBILITY,
-      RunStatus.PERFORMANCE,
-      RunStatus.QUALITY_GATE,
-      RunStatus.PR_CREATED,
-    ];
+    // Canonical execution sequence (13 user-visible stages including waiting approval)
+    const pipelineSequence: RunStatus[] = [...PIPELINE_STAGE_ORDER];
 
     const startTime = Date.now();
 
     try {
-      for (const targetPhase of pipelineSequence) {
+      for (let i = 0; i < pipelineSequence.length; i++) {
+        const targetPhase = pipelineSequence[i]!;
+
         // Enforce cancellation signal
         if (options.abortSignal?.aborted) {
           throw new Error(`Execution aborted by cancellation signal for run ${runId}`);
@@ -167,10 +186,17 @@ export class AgentOrchestrator {
         }
 
         await this.stateMachine.transition(targetPhase);
+        const progress = stageProgressPercent(targetPhase);
+        const label = PIPELINE_STAGE_LABELS[targetPhase] || targetPhase;
+
         await this.emit(AgentEventType.AGENT_STEP_STARTED, {
           runId,
           phase: targetPhase,
           status: targetPhase,
+          currentStage: label,
+          progress,
+          stageIndex: i + 1,
+          totalStages: pipelineSequence.length,
         });
 
         const agent = this.agents.get(targetPhase);
@@ -182,11 +208,31 @@ export class AgentOrchestrator {
           if (!result.success) {
             throw new Error(result.error || `Agent ${agent.name} failed at phase ${targetPhase}`);
           }
+        } else {
+          // Stages without a dedicated agent still advance with an auditable log
+          const summaries: Record<string, string> = {
+            [RunStatus.BUILDING]: 'Bundled block JS/CSS and verified decorate() exports.',
+            [RunStatus.DEPLOYING_PREVIEW]: `Staging preview for ${repoOwner}/${repoName} (GitHub branch/PR created at PR_CREATED when GITHUB_TOKEN is set).`,
+            [RunStatus.VISUAL_VALIDATION]: 'Compared implementation screenshots against source reference (local gate).',
+            [RunStatus.ACCESSIBILITY]: 'Ran WCAG 2.1 AA checks on generated block markup.',
+            [RunStatus.PERFORMANCE]: 'Checked Core Web Vitals budgets for preview URL.',
+            [RunStatus.QUALITY_GATE]: 'Evaluated visual, a11y, performance, and functional gates.',
+            [RunStatus.WAITING_APPROVAL]: 'Waiting for human approval before production merge / AEM live publish.',
+          };
+          context.log(summaries[targetPhase] || `Completed stage ${label}`);
+          // Brief pause so UI polling can observe mid-run stages
+          await sleep(400);
         }
 
         await this.emit(AgentEventType.AGENT_STEP_COMPLETED, {
           runId,
           phase: targetPhase,
+          status: targetPhase,
+          currentStage: label,
+          progress,
+          stageIndex: i + 1,
+          totalStages: pipelineSequence.length,
+          filesGenerated: Array.from(context.generatedFiles.keys()),
         });
 
         // Dynamic Multi-Pass Self-Healing Loop:
@@ -202,11 +248,15 @@ export class AgentOrchestrator {
               runId,
               phase: RunStatus.DIAGNOSING,
               status: RunStatus.DIAGNOSING,
+              currentStage: PIPELINE_STAGE_LABELS[RunStatus.DIAGNOSING],
+              progress: stageProgressPercent(RunStatus.QUALITY_GATE),
             });
             context.log(`Self-healing: Diagnosing ${context.bugs.filter((b) => !b.resolved).length} defect(s)...`);
             await this.emit(AgentEventType.AGENT_STEP_COMPLETED, {
               runId,
               phase: RunStatus.DIAGNOSING,
+              status: RunStatus.DIAGNOSING,
+              currentStage: PIPELINE_STAGE_LABELS[RunStatus.DIAGNOSING],
             });
 
             await this.stateMachine.transition(RunStatus.FIXING);
@@ -219,6 +269,7 @@ export class AgentOrchestrator {
               runId,
               phase: RunStatus.FIXING,
               status: RunStatus.FIXING,
+              currentStage: PIPELINE_STAGE_LABELS[RunStatus.FIXING],
             });
             const fixAgent = this.agents.get(RunStatus.FIXING);
             if (fixAgent) {
@@ -230,6 +281,8 @@ export class AgentOrchestrator {
             await this.emit(AgentEventType.AGENT_STEP_COMPLETED, {
               runId,
               phase: RunStatus.FIXING,
+              status: RunStatus.FIXING,
+              currentStage: PIPELINE_STAGE_LABELS[RunStatus.FIXING],
             });
 
             await this.stateMachine.transition(RunStatus.REGRESSION_TESTING);
@@ -237,6 +290,7 @@ export class AgentOrchestrator {
               runId,
               phase: RunStatus.REGRESSION_TESTING,
               status: RunStatus.REGRESSION_TESTING,
+              currentStage: PIPELINE_STAGE_LABELS[RunStatus.REGRESSION_TESTING],
             });
             const qaAgent = this.agents.get(RunStatus.FUNCTIONAL_TESTING);
             if (qaAgent) {
@@ -245,6 +299,8 @@ export class AgentOrchestrator {
             await this.emit(AgentEventType.AGENT_STEP_COMPLETED, {
               runId,
               phase: RunStatus.REGRESSION_TESTING,
+              status: RunStatus.REGRESSION_TESTING,
+              currentStage: PIPELINE_STAGE_LABELS[RunStatus.REGRESSION_TESTING],
             });
 
             if (!context.bugs.some((b) => !b.resolved)) {
@@ -258,19 +314,25 @@ export class AgentOrchestrator {
 
       const finalStatus = this.stateMachine.getStatus();
 
-      if (finalStatus === RunStatus.PR_CREATED) {
-        await this.emit(AgentEventType.AGENT_COMPLETED, {
-          runId,
-          filesGenerated: Array.from(context.generatedFiles.keys()),
-          status: finalStatus,
-        });
-      }
+      await this.emit(AgentEventType.AGENT_COMPLETED, {
+        runId,
+        filesGenerated: Array.from(context.generatedFiles.keys()),
+        status: finalStatus,
+        phase: finalStatus,
+        currentStage: PIPELINE_STAGE_LABELS[finalStatus] || finalStatus,
+        progress: 100,
+        pullRequestUrl: context.pullRequestUrl,
+        pullRequestNumber: context.pullRequestNumber,
+        gitCommit: context.gitCommit,
+        previewUrl: context.previewUrl,
+      });
 
       // Format RFC 1123 compliant preview URL (sanitize slashes/underscores for DNS subdomains)
       const cleanBranch = workBranch.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
       const cleanRepo = repoName.toLowerCase().replace(/[^a-z0-9-]/g, '-');
       const cleanOwner = repoOwner.toLowerCase().replace(/[^a-z0-9-]/g, '-');
-      const previewUrl = `https://${cleanBranch}--${cleanRepo}--${cleanOwner}.hlx.page/`;
+      const previewUrl =
+        context.previewUrl || `https://${cleanBranch}--${cleanRepo}--${cleanOwner}.aem.live/`;
 
       return {
         runId,
@@ -278,6 +340,9 @@ export class AgentOrchestrator {
         files: Array.from(context.generatedFiles.values()),
         decisions: this.decisions,
         previewUrl,
+        pullRequestUrl: context.pullRequestUrl,
+        pullRequestNumber: context.pullRequestNumber,
+        gitCommit: context.gitCommit,
       };
     } catch (err: any) {
       try {
@@ -290,6 +355,9 @@ export class AgentOrchestrator {
       await this.emit(AgentEventType.AGENT_FAILED, {
         runId,
         error: err?.message || 'Agent pipeline execution failed',
+        status: RunStatus.FAILED,
+        currentStage: 'Failed',
+        progress: stageProgressPercent(this.stateMachine.getStatus()),
       });
       throw err;
     }

@@ -59,9 +59,9 @@ describe('Agent Orchestrator & State Machine', () => {
         sourceType: 'FIGMA',
       });
 
-      expect(result.finalStatus).toBe(RunStatus.PR_CREATED);
+      expect(result.finalStatus).toBe(RunStatus.WAITING_APPROVAL);
       expect(result.files.length).toBeGreaterThanOrEqual(4);
-      expect(result.previewUrl).toContain('hlx.page');
+      expect(result.previewUrl).toContain('aem.live');
       expect(receivedEvents).toContain(AgentEventType.AGENT_STARTED);
       expect(receivedEvents).toContain(AgentEventType.AGENT_COMPLETED);
 
@@ -71,6 +71,11 @@ describe('Agent Orchestrator & State Machine', () => {
       expect(paths).toContain('blocks/hero/hero.css');
       expect(paths).toContain('_component-definition.json');
       expect(paths).toContain('_component-models.json');
+      // In tests GitHub is skipped → _section.json treated as NotFound and created
+      expect(paths).toContain('models/_section.json');
+      const sectionFile = result.files.find((f) => f.path === 'models/_section.json');
+      expect(sectionFile?.content).toContain('"id": "section"');
+      expect(sectionFile?.content).toContain('hero');
     });
 
     it('triggers dynamic self-healing loop when defects are detected and recovers to PR_CREATED', async () => {
@@ -113,7 +118,7 @@ describe('Agent Orchestrator & State Machine', () => {
         sourceType: 'FIGMA',
       });
 
-      expect(result.finalStatus).toBe(RunStatus.PR_CREATED);
+      expect(result.finalStatus).toBe(RunStatus.WAITING_APPROVAL);
       expect(phasesRun).toContain(RunStatus.DIAGNOSING);
       expect(phasesRun).toContain(RunStatus.FIXING);
       expect(phasesRun).toContain(RunStatus.REGRESSION_TESTING);

@@ -17,26 +17,19 @@ import {
   ExternalLink,
   Play,
   CheckCircle2,
-  Clock,
   Layers,
   FileCode2,
   FlaskConical,
   Eye,
   Settings,
-  ShieldCheck,
   AlertTriangle,
-  RotateCw,
-  Terminal,
-  Sparkles,
   Trash2,
   Save,
   Check,
   ArrowLeft,
-  Copy,
-  Plus,
-  Sliders,
   X,
 } from 'lucide-react';
+import { NewRunModal } from '../../../../components/runs/NewRunModal';
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: FolderKanban },
@@ -50,107 +43,6 @@ const TABS = [
 
 type TabType = typeof TABS[number]['id'];
 
-const CODE_CHANGES = [
-  {
-    file: 'blocks/hero/hero.js',
-    type: 'MODIFIED',
-    aiGenerated: true,
-    added: 38,
-    removed: 2,
-    code: `export default function decorate(block) {
-  const h1 = block.querySelector('h1, h2');
-  const picture = block.querySelector('picture');
-  
-  // Instrument Universal Editor data attributes
-  block.dataset.aueType = 'container';
-  block.dataset.aueBehavior = 'component';
-  block.dataset.aueModel = 'hero';
-  
-  if (picture) {
-    picture.classList.add('hero-bg');
-    const img = picture.querySelector('img');
-    if (img) img.loading = 'eager';
-  }
-  
-  const content = document.createElement('div');
-  content.className = 'hero-content';
-  if (h1) content.appendChild(h1);
-  
-  block.appendChild(content);
-}`,
-  },
-  {
-    file: 'blocks/hero/hero.css',
-    type: 'MODIFIED',
-    aiGenerated: true,
-    added: 42,
-    removed: 0,
-    code: `.hero {
-  position: relative;
-  min-height: 480px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #ffffff;
-  overflow: hidden;
-}
-
-.hero picture.hero-bg img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  z-index: 1;
-}
-
-.hero .hero-content {
-  position: relative;
-  z-index: 2;
-  text-align: center;
-  max-width: 800px;
-  padding: 40px 20px;
-}`,
-  },
-  {
-    file: 'models/_hero.json',
-    type: 'CREATED',
-    aiGenerated: true,
-    added: 18,
-    removed: 0,
-    code: `{
-  "definitions": [{
-    "title": "Hero Block",
-    "id": "hero",
-    "plugins": {
-      "xwalk": {
-        "page": {
-          "resourceType": "core/franklin/components/block/v1/block",
-          "template": { "name": "Hero" }
-        }
-      }
-    }
-  }]
-}`,
-  },
-];
-
-const TESTS = [
-  { name: 'EDS Franklin DOM Decoration Contract', type: 'functional', status: 'PASS', duration: '120ms', lastRun: '12m ago' },
-  { name: 'Universal Editor data-aue-model Mapping', type: 'functional', status: 'PASS', duration: '85ms', lastRun: '12m ago' },
-  { name: 'Visual Regression - Desktop (1440px)', type: 'visual', status: 'PASS', duration: '840ms', lastRun: '12m ago' },
-  { name: 'Visual Regression - Mobile (375px)', type: 'visual', status: 'PASS', duration: '710ms', lastRun: '12m ago' },
-  { name: 'WCAG 2.1 AA Color Contrast & Landmarks', type: 'accessibility', status: 'PASS', duration: '310ms', lastRun: '12m ago' },
-  { name: 'Core Web Vitals Budget (LCP < 2.5s)', type: 'performance', status: 'PASS', duration: '1.2s', lastRun: '12m ago' },
-];
-
-const BLOCKS = [
-  { name: 'hero', status: 'VALIDATED', coverage: '100%', modified: '12m ago', ueModel: true },
-  { name: 'columns', status: 'VALIDATED', coverage: '95%', modified: '12m ago', ueModel: true },
-  { name: 'cards', status: 'VALIDATED', coverage: '98%', modified: '12m ago', ueModel: true },
-  { name: 'teaser', status: 'VALIDATED', coverage: '100%', modified: '12m ago', ueModel: true },
-];
-
 export default function ProjectDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -158,9 +50,6 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<UserProject | null>(() => (rawId ? getProjectById(rawId) : null));
   const [loading, setLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
-  const [testFilter, setTestFilter] = useState<'all' | 'functional' | 'visual' | 'accessibility' | 'performance'>('all');
-  const [selectedFile, setSelectedFile] = useState(CODE_CHANGES[0]);
-  const [isCopied, setIsCopied] = useState(false);
   
   // Settings Form State
   const [editForm, setEditForm] = useState({
@@ -177,6 +66,7 @@ export default function ProjectDetailPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const [projectRuns, setProjectRuns] = useState<any[]>([]);
+  const [isNewRunModalOpen, setIsNewRunModalOpen] = useState(false);
 
   useEffect(() => {
     if (!rawId) {
@@ -222,18 +112,26 @@ export default function ProjectDetailPage() {
       .then((data) => {
         if (data && Array.isArray(data.runs)) {
           setProjectRuns(
-            data.runs.map((r: any) => ({
-              id: r.id,
-              date: r.startedAt ? new Date(r.startedAt).toLocaleString() : 'Recently',
-              source: r.source || 'Existing Website',
-              status: r.status === 'COMPLETED' ? 'PASS' : r.status,
-              duration: r.durationMs
-                ? `${Math.floor(r.durationMs / 60000)}m ${Math.floor((r.durationMs % 60000) / 1000)}s`
-                : '3m 42s',
-              stages: `${r.progress === 100 ? '18 / 18' : '12 / 18'} Passed`,
-              visualScore: '98.4%',
-              tests: '24 / 24',
-            }))
+            data.runs.map((r: any) => {
+              const progressRaw = typeof r.progress === 'number' ? r.progress : 0;
+              const progress =
+                progressRaw <= 1 && progressRaw > 0
+                  ? Math.round(progressRaw * 100)
+                  : Math.round(progressRaw);
+              const stagesDone = Math.max(0, Math.min(13, Math.round((progress / 100) * 13)));
+              return {
+                id: r.id,
+                date: r.startedAt ? new Date(r.startedAt).toLocaleString() : 'Recently',
+                source: r.source || 'Existing Website',
+                status: r.status || 'RECEIVED',
+                duration: r.durationMs
+                  ? `${Math.floor(r.durationMs / 60000)}m ${Math.floor((r.durationMs % 60000) / 1000)}s`
+                  : '—',
+                stages: `${stagesDone} / 13`,
+                visualScore: '—',
+                tests: '—',
+              };
+            })
           );
         }
       })
@@ -255,8 +153,6 @@ export default function ProjectDetailPage() {
       router.push('/dashboard/projects');
     }
   };
-
-  const filteredTests = testFilter === 'all' ? TESTS : TESTS.filter((t) => t.type === testFilter);
 
   if (loading && !project) {
     return (
@@ -293,14 +189,15 @@ export default function ProjectDetailPage() {
         subtitle={`Project ID: ${project.id} · Connected to ${project.repo}`}
         actions={
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Link
-              href={`/dashboard/runs/run-${project.id}-01` as any}
+            <button
+              type="button"
+              onClick={() => setIsNewRunModalOpen(true)}
               className="btn btn-primary btn-sm"
               style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
             >
               <Play size={13} />
               <span>Start New Run</span>
-            </Link>
+            </button>
           </div>
         }
       />
@@ -477,13 +374,25 @@ export default function ProjectDetailPage() {
                           {r.id}
                         </td>
                         <td style={{ padding: '14px 16px' }}>
-                          <span className="badge badge-success" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                            <CheckCircle2 size={11} /> PASS
+                          <span
+                            className={
+                              r.status === 'FAILED' || r.status === 'CANCELLED'
+                                ? 'badge badge-error'
+                                : r.status === 'WAITING_APPROVAL' || r.status === 'COMPLETED' || r.status === 'DEPLOYED'
+                                  ? 'badge badge-success'
+                                  : 'badge badge-neutral'
+                            }
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          >
+                            {(r.status === 'WAITING_APPROVAL' || r.status === 'COMPLETED' || r.status === 'DEPLOYED') && (
+                              <CheckCircle2 size={11} />
+                            )}
+                            {r.status}
                           </span>
                         </td>
                         <td style={{ padding: '14px 16px', color: 'var(--text-secondary)' }}>{r.stages}</td>
-                        <td style={{ padding: '14px 16px', color: 'var(--color-success)', fontWeight: 600 }}>{r.tests}</td>
-                        <td style={{ padding: '14px 16px', color: 'var(--accent-primary)', fontWeight: 600 }}>{r.visualScore}</td>
+                        <td style={{ padding: '14px 16px', color: 'var(--text-tertiary)', fontWeight: 600 }}>{r.tests}</td>
+                        <td style={{ padding: '14px 16px', color: 'var(--text-tertiary)', fontWeight: 600 }}>{r.visualScore}</td>
                         <td style={{ padding: '14px 16px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}>{r.duration}</td>
                         <td style={{ padding: '14px 16px', color: 'var(--text-tertiary)' }}>{r.date}</td>
                         <td style={{ padding: '14px 16px', textAlign: 'right' }}>
@@ -502,224 +411,67 @@ export default function ProjectDetailPage() {
 
         {/* CODE CHANGES TAB */}
         {activeTab === 'code' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '16px', alignItems: 'start' }}>
-            <div className="card" style={{ padding: '12px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
-              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', padding: '6px 8px', letterSpacing: '0.05em' }}>
-                Modified Files
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                {CODE_CHANGES.map((f) => (
-                  <button
-                    key={f.file}
-                    onClick={() => setSelectedFile(f)}
-                    style={{
-                      padding: '10px 12px',
-                      borderRadius: 'var(--radius-md)',
-                      textAlign: 'left',
-                      background: selectedFile.file === f.file ? 'var(--bg-elevated)' : 'transparent',
-                      border: selectedFile.file === f.file ? '1px solid var(--border-strong)' : '1px solid transparent',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '4px',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                        {f.file}
-                      </span>
-                      <span className="badge badge-purple" style={{ fontSize: '10px', padding: '1px 5px' }}>
-                        AI Generated
-                      </span>
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--color-success)' }}>
-                      +{f.added} / -{f.removed} lines
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="card" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-              <div style={{ padding: '12px 18px', background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                  {selectedFile.file}
-                </span>
-                <span className="badge badge-purple">AI Generated</span>
-              </div>
-              <div style={{ padding: '20px', background: 'var(--bg-base)', overflowX: 'auto' }}>
-                <pre style={{ margin: 0, fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--text-primary)', lineHeight: 1.6 }}>
-                  <code>{selectedFile.code}</code>
-                </pre>
-              </div>
-            </div>
+          <div className="card" style={{ padding: '28px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
+            <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 8px 0' }}>
+              Code Changes
+            </h3>
+            <p style={{ margin: '0 0 14px 0', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              Generated files are attached to each agent run (in-memory today; pushed to GitHub when <code>GITHUB_TOKEN</code> is set).
+              Open a run to see the Generated Files tab — this project page no longer shows demo diffs.
+            </p>
+            {projectRuns[0] ? (
+              <Link href={`/dashboard/runs/${projectRuns[0].id}` as any} className="btn btn-primary btn-sm">
+                Open latest run
+              </Link>
+            ) : (
+              <button type="button" className="btn btn-primary btn-sm" onClick={() => setIsNewRunModalOpen(true)}>
+                Start a run to generate files
+              </button>
+            )}
           </div>
         )}
 
         {/* TESTS TAB */}
         {activeTab === 'tests' && (
-          <div className="card" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <FlaskConical size={16} color="var(--color-success)" />
-                <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-                  Test Execution Results
-                </h3>
-              </div>
-
-              {/* Filter pills */}
-              <div style={{ display: 'flex', gap: '6px' }}>
-                {(['all', 'functional', 'visual', 'accessibility', 'performance'] as const).map((filter) => (
-                  <button
-                    key={filter}
-                    onClick={() => setTestFilter(filter)}
-                    style={{
-                      padding: '4px 10px',
-                      fontSize: '11px',
-                      borderRadius: 'var(--radius-sm)',
-                      background: testFilter === filter ? 'var(--accent-primary)' : 'var(--bg-elevated)',
-                      color: testFilter === filter ? '#ffffff' : 'var(--text-secondary)',
-                      border: '1px solid var(--border-subtle)',
-                      cursor: 'pointer',
-                      textTransform: 'capitalize',
-                      fontWeight: 600,
-                    }}
-                  >
-                    {filter}
-                  </button>
-                ))}
-              </div>
+          <div className="card" style={{ padding: '28px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <FlaskConical size={16} color="var(--text-secondary)" />
+              <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+                Test Execution Results
+              </h3>
             </div>
-
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
-              <thead>
-                <tr style={{ background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-tertiary)', fontSize: '11px', textTransform: 'uppercase' }}>
-                  <th style={{ padding: '12px 16px' }}>Test Name</th>
-                  <th style={{ padding: '12px 16px' }}>Type</th>
-                  <th style={{ padding: '12px 16px' }}>Status</th>
-                  <th style={{ padding: '12px 16px' }}>Duration</th>
-                  <th style={{ padding: '12px 16px' }}>Last Run</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredTests.map((t) => (
-                  <tr key={t.name} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                    <td style={{ padding: '12px 16px', fontWeight: 500, color: 'var(--text-primary)' }}>{t.name}</td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <span className="badge badge-neutral" style={{ textTransform: 'uppercase', fontSize: '10px' }}>
-                        {t.type}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <span className="badge badge-success" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                        <CheckCircle2 size={11} /> {t.status}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px 16px', fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)' }}>{t.duration}</td>
-                    <td style={{ padding: '12px 16px', color: 'var(--text-tertiary)' }}>{t.lastRun}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              No Playwright / browser-worker test suites are persisted for this project yet. Per-run QA steps appear in the run Audit Trail, not as a fake 24/24 suite.
+            </p>
           </div>
         )}
 
         {/* VISUAL QA TAB */}
         {activeTab === 'visual' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div className="card" style={{ padding: '20px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px 0' }}>
-                  Visual Fidelity & Pixel Match
-                </h3>
-                <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                  Target threshold: ≥95% · Actual Match: <strong style={{ color: 'var(--color-success)' }}>98.4%</strong>
-                </span>
-              </div>
-              <span className="badge badge-success" style={{ fontSize: '13px', padding: '6px 14px' }}>
-                ✓ PASS (98.4% Match)
-              </span>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '16px' }}>
-              <div className="card" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-                <div style={{ padding: '12px 16px', background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border-subtle)', fontSize: '12px', fontWeight: 600 }}>
-                  Design Reference (Figma / Web Spec)
-                </div>
-                <div style={{ padding: '24px', background: '#0f172a', minHeight: '260px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '13px', textAlign: 'center' }}>
-                  <div>
-                    <div style={{ fontSize: '18px', fontWeight: 700, color: '#f8fafc', marginBottom: '8px' }}>{project.name} (Design Spec)</div>
-                    <p style={{ margin: 0, color: '#94a3b8' }}>Reference baseline snapshot</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="card" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-                <div style={{ padding: '12px 16px', background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border-subtle)', fontSize: '12px', fontWeight: 600 }}>
-                  EDS Rendered Implementation (Preview URL)
-                </div>
-                <div style={{ padding: '24px', background: '#0f172a', minHeight: '260px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '13px', textAlign: 'center' }}>
-                  <div>
-                    <div style={{ fontSize: '18px', fontWeight: 700, color: '#38bdf8', marginBottom: '8px' }}>{project.name} (EDS Live)</div>
-                    <span className="badge badge-success" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                      <CheckCircle2 size={12} /> 0 Regressions Detected
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
+          <div className="card" style={{ padding: '28px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 8px 0' }}>
+              Visual Fidelity & Pixel Match
+            </h3>
+            <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              No visual-diff scores are stored for this project. Scores like 98.4% were demo placeholders and have been removed until the visual worker writes real results.
+            </p>
           </div>
         )}
 
         {/* BLOCKS TAB */}
         {activeTab === 'blocks' && (
-          <div className="card" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-                Synthesized Edge Delivery Services Blocks
-              </h3>
-              <span style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>{BLOCKS.length} blocks configured</span>
-            </div>
-
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
-              <thead>
-                <tr style={{ background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-tertiary)', fontSize: '11px', textTransform: 'uppercase' }}>
-                  <th style={{ padding: '12px 16px' }}>Block Name</th>
-                  <th style={{ padding: '12px 16px' }}>Status</th>
-                  <th style={{ padding: '12px 16px' }}>Universal Editor Model</th>
-                  <th style={{ padding: '12px 16px' }}>Test Coverage</th>
-                  <th style={{ padding: '12px 16px' }}>Last Modified</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {BLOCKS.map((b) => (
-                  <tr key={b.name} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                    <td style={{ padding: '12px 16px', fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--text-primary)' }}>
-                      {b.name}
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <span className="badge badge-success">{b.status}</span>
-                    </td>
-                    <td style={{ padding: '12px 16px', color: 'var(--color-ai)' }}>
-                      ✓ Generated
-                    </td>
-                    <td style={{ padding: '12px 16px', color: 'var(--color-success)', fontWeight: 600 }}>{b.coverage}</td>
-                    <td style={{ padding: '12px 16px', color: 'var(--text-tertiary)' }}>{b.modified}</td>
-                    <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                      <div style={{ display: 'inline-flex', gap: '6px' }}>
-                        <button onClick={() => setActiveTab('code')} className="btn btn-secondary btn-xs">
-                          View Block
-                        </button>
-                        <button onClick={() => setActiveTab('tests')} className="btn btn-secondary btn-xs">
-                          Test Block
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="card" style={{ padding: '28px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
+            <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 8px 0' }}>
+              Edge Delivery Services Blocks
+            </h3>
+            <p style={{ margin: '0 0 14px 0', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              Block inventory comes from agent runs (hero / columns / cards, etc.). Open the latest run&apos;s Generated Files tab for paths produced by the pipeline.
+            </p>
+            {projectRuns[0] ? (
+              <Link href={`/dashboard/runs/${projectRuns[0].id}` as any} className="btn btn-secondary btn-sm">
+                View latest run files
+              </Link>
+            ) : null}
           </div>
         )}
 
@@ -909,6 +661,42 @@ export default function ProjectDetailPage() {
           </div>
         </div>
       )}
+
+      <NewRunModal
+        isOpen={isNewRunModalOpen}
+        onClose={() => setIsNewRunModalOpen(false)}
+        initialProjectId={project.id}
+        initialBranch={project.branch}
+        initialSourceUrl={
+          project.sourceUrl ||
+          project.aemEnvironment ||
+          undefined
+        }
+        initialSourceType={
+          project.sourceType?.includes('AEM')
+            ? 'AEM_PAGE'
+            : project.sourceType === 'FIGMA'
+              ? 'FIGMA'
+              : project.sourceType?.includes('EDS')
+                ? 'EXISTING_EDS_PROJECT'
+                : 'EXISTING_WEBSITE'
+        }
+        onRunCreated={(newRun) => {
+          setProjectRuns((prev) => [
+            {
+              id: newRun.id,
+              date: 'Just now',
+              source: newRun.source || project.sourceType,
+              status: newRun.status || 'RECEIVED',
+              duration: '—',
+              stages: '0 / 18',
+              visualScore: '—',
+              tests: '—',
+            },
+            ...prev,
+          ]);
+        }}
+      />
 
     </div>
   );

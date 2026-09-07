@@ -35,9 +35,9 @@ export function ProjectsGrid({ projects: initialProjects = [] }: ProjectsGridPro
         eds: true,
         aem: !!p.aemEnvironment,
         ue: true,
-        testsTotal: p.blocksCount > 0 ? p.blocksCount * 8 : 0,
-        testsPassed: p.blocksCount > 0 ? p.blocksCount * 8 : 0,
-        visualScore: p.healthScore,
+        testsTotal: 0,
+        testsPassed: 0,
+        visualScore: undefined,
         lastRunAt: p.lastRunTime,
       }))
     : initialProjects;
@@ -167,11 +167,13 @@ function ProjectRow({ project }: { project: ProjectCard }) {
 
         {/* Metrics */}
         <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-          <Metric
-            label="Tests"
-            value={`${project.testsPassed}/${project.testsTotal}`}
-            ok={project.testsPassed === project.testsTotal}
-          />
+          {project.testsTotal > 0 && (
+            <Metric
+              label="Tests"
+              value={`${project.testsPassed}/${project.testsTotal}`}
+              ok={project.testsPassed === project.testsTotal}
+            />
+          )}
           {project.visualScore !== undefined && (
             <Metric
               label="Visual"

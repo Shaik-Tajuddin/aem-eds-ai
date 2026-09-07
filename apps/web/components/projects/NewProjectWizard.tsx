@@ -780,6 +780,9 @@ export function NewProjectWizard() {
   const [formData, setFormData] = useState<FormData>(defaultFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [createdProjectId, setCreatedProjectId] = useState<string | null>(null);
+  const [startedRunId, setStartedRunId] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const updateData = (partial: Partial<FormData>) =>
     setFormData((prev) => ({ ...prev, ...partial }));
@@ -797,16 +800,66 @@ export function NewProjectWizard() {
     }
   };
 
+  const mapSourceForApi = (sourceType: string): string => {
+    const s = (sourceType || "").toUpperCase();
+    if (s === "FIGMA") return "FIGMA";
+    if (s === "EXISTING_AEM_PAGE" || s === "AEM_PAGE") return "EXISTING_AEM_PAGE";
+    if (s === "EXISTING_EDS_PROJECT" || s === "EXISTING_EDS_REPO") return "EXISTING_EDS_PROJECT";
+    if (s === "SCREENSHOT") return "SCREENSHOT";
+    if (s === "NATURAL_LANGUAGE" || s === "PROMPT") return "NATURAL_LANGUAGE";
+    return "EXISTING_WEBSITE";
+  };
+
   const handleSubmit = async () => {
     setIsSubmitting(true);
+    setSubmitError(null);
     try {
-      saveProject(formData);
-      await new Promise((r) => setTimeout(r, 600));
-    } catch (e) {
-      console.error("Error saving project:", e);
+      const project = await saveProject(formData);
+      setCreatedProjectId(project.id);
+
+      const isUuid =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          project.id,
+        );
+
+      if (!isUuid) {
+        setSubmitError(
+          "Project saved locally only (API create failed). Open the project and use Start New Run after fixing API connectivity.",
+        );
+        setSubmitted(true);
+        return;
+      }
+
+      const runRes = await fetch("/api/backend/runs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: project.id,
+          source: mapSourceForApi(formData.sourceType),
+          sourceUrl: formData.sourceUrl || undefined,
+          branch: formData.githubBranch || "main",
+          maxIterations: Number(formData.maxFixIterations) || 5,
+          taskTitle: `EDS pipeline for ${formData.name}`,
+        }),
+      });
+
+      const runData = await runRes.json().catch(() => ({}));
+      if (!runRes.ok || !runData?.run?.id) {
+        throw new Error(
+          runData?.error ||
+            runData?.details?.[0]?.message ||
+            `Failed to start run (HTTP ${runRes.status})`,
+        );
+      }
+
+      setStartedRunId(runData.run.id);
+      setSubmitted(true);
+    } catch (e: any) {
+      console.error("Error creating project / starting run:", e);
+      setSubmitError(e?.message || "Failed to create project or start run");
+      setSubmitted(true);
     } finally {
       setIsSubmitting(false);
-      setSubmitted(true);
     }
   };
 
@@ -818,15 +871,18 @@ export function NewProjectWizard() {
             width: "56px",
             height: "56px",
             borderRadius: "50%",
-            background: "var(--color-success-dim)",
-            border: "2px solid var(--color-success)",
+            background: submitError && !startedRunId ? "rgba(239,68,68,0.12)" : "var(--color-success-dim)",
+            border: `2px solid ${submitError && !startedRunId ? "var(--color-error)" : "var(--color-success)"}`,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             margin: "0 auto 24px",
           }}
         >
-          <Check size={24} color="var(--color-success)" />
+          <Check
+            size={24}
+            color={submitError && !startedRunId ? "var(--color-error)" : "var(--color-success)"}
+          />
         </div>
         <h2
           style={{
@@ -836,13 +892,13 @@ export function NewProjectWizard() {
             marginBottom: "12px",
           }}
         >
-          Project Created
+          {startedRunId ? "Project Created — Agent Run Started" : "Project Created"}
         </h2>
         <p
           style={{
             fontSize: "13px",
             color: "var(--text-secondary)",
-            marginBottom: "32px",
+            marginBottom: "16px",
             lineHeight: 1.6,
           }}
         >
@@ -850,11 +906,44 @@ export function NewProjectWizard() {
           <strong style={{ color: "var(--text-primary)" }}>
             {formData.name}
           </strong>{" "}
-          is ready. The AI agent orchestrator will be available in Phase 4.
+          {startedRunId
+            ? "is saved and the autonomous pipeline is executing Analyze → Blocks → UE → Tests → Quality Gate → PR."
+            : "is saved."}
         </p>
-        <a href="/dashboard" className="btn btn-primary">
-          Return to Dashboard
-        </a>
+        {startedRunId && (
+          <p
+            style={{
+              fontSize: "12px",
+              color: "var(--text-tertiary)",
+              fontFamily: "var(--font-mono)",
+              marginBottom: "24px",
+            }}
+          >
+            Run ID: {startedRunId}
+          </p>
+        )}
+        {submitError && (
+          <p style={{ fontSize: "12px", color: "var(--color-error)", marginBottom: "20px" }}>
+            {submitError}
+          </p>
+        )}
+        <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
+          {startedRunId ? (
+            <a href={`/dashboard/runs/${startedRunId}`} className="btn btn-primary">
+              Watch Run Progress
+            </a>
+          ) : createdProjectId ? (
+            <a href={`/dashboard/projects/${createdProjectId}`} className="btn btn-primary">
+              Open Project
+            </a>
+          ) : null}
+          <a href="/dashboard/runs" className="btn btn-secondary">
+            Recent Runs
+          </a>
+          <a href="/dashboard" className="btn btn-ghost">
+            Dashboard
+          </a>
+        </div>
       </div>
     );
   }

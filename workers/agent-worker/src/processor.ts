@@ -1,7 +1,7 @@
 import { Job } from 'bullmq';
 import { AgentRunJobData, AgentRunJobResult } from '@aeds/queue';
 import { AgentOrchestrator } from '@aeds/agent';
-import { getDatabase, agentRuns, agentEvents } from '@aeds/database';
+import { getDatabase, agentRuns, agentEvents, pullRequests } from '@aeds/database';
 import { eq } from '@aeds/database';
 
 export async function processAgentRunJob(
@@ -64,6 +64,10 @@ export async function processAgentRunJob(
             .set({
               status: payload['status'] as any,
               progress: progress ?? undefined,
+              currentStage:
+                typeof payload['currentStage'] === 'string'
+                  ? payload['currentStage']
+                  : step,
               updatedAt: new Date(),
             })
             .where(eq(agentRuns.id, data.runId));
@@ -94,12 +98,34 @@ export async function processAgentRunJob(
         await db
           .update(agentRuns)
           .set({
-            status: 'COMPLETED',
+            status: result.finalStatus as any,
             progress: 100,
+            currentStage: String(result.finalStatus),
             durationMs,
+            completedAt: new Date(),
             updatedAt: new Date(),
+            ...(result.gitCommit ? { gitCommit: result.gitCommit } : {}),
           })
           .where(eq(agentRuns.id, data.runId));
+
+        if (result.pullRequestUrl) {
+          await db.insert(pullRequests).values({
+            runId: data.runId,
+            projectId: data.projectId,
+            provider: 'github',
+            prNumber: result.pullRequestNumber,
+            title: `feat(aeds): EDS pipeline run ${data.runId.slice(0, 8)}`,
+            body: result.previewUrl ? `Preview: ${result.previewUrl}` : undefined,
+            url: result.pullRequestUrl,
+            headBranch: `aeds/run-${data.runId}`,
+            baseBranch: data.baseBranch || 'main',
+            status: 'open',
+            evidenceSummary: {
+              previewUrl: result.previewUrl,
+              files: result.files.map((f) => f.path),
+            },
+          });
+        }
       } catch (err) {
         console.warn('[AgentWorker] Failed to update completed status:', err);
       }
@@ -107,10 +133,10 @@ export async function processAgentRunJob(
 
     return {
       runId: data.runId,
-      status: (result.finalStatus as any) === 'COMPLETED' ? 'COMPLETED' : 'HALTED',
-      finalStage: 'DEPLOYMENT_COMPLETE',
-      pullRequestUrl: `https://github.com/${data.repoOwner}/${data.repoName}/pull/1`,
-      previewUrl: result.previewUrl || `https://preview--${data.repoName}--${data.repoOwner}.aem.page`,
+      status: 'COMPLETED',
+      finalStage: String(result.finalStatus),
+      pullRequestUrl: result.pullRequestUrl,
+      previewUrl: result.previewUrl || `https://preview--${data.repoName}--${data.repoOwner}.aem.live`,
       iterationsCompleted: data.iteration || 1,
       totalDurationMs: durationMs,
     };

@@ -28,6 +28,12 @@ export interface RunExecutionContext {
   designTokens?: Record<string, unknown>;
   detectedBlocks?: string[];
   bugs: Array<{ id: string; title: string; severity: string; description: string; resolved?: boolean }>;
+  /** When true, DeploymentAgent will not call the GitHub API */
+  skipGitHubPublish?: boolean;
+  pullRequestUrl?: string;
+  pullRequestNumber?: number;
+  gitCommit?: string;
+  previewUrl?: string;
   log: (message: string, level?: 'info' | 'warn' | 'error') => void;
 }
 

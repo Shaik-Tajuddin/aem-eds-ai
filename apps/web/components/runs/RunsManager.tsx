@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { NewRunModal } from './NewRunModal';
 
 interface RunItem {
@@ -9,6 +10,7 @@ interface RunItem {
   projectId: string;
   projectName: string;
   source: 'FIGMA' | 'EXISTING_WEBSITE' | 'AEM_PAGE';
+  sourceUrl?: string;
   branch: string;
   status: 'ANALYZING' | 'IMPLEMENTING' | 'QUALITY_GATE' | 'PR_CREATED' | 'FAILED' | 'PAUSED';
   currentPhaseText: string;
@@ -42,54 +44,75 @@ function mapDbRunToRunItem(r: any): RunItem {
     VISUAL_VALIDATION: 'QUALITY_GATE',
     ACCESSIBILITY: 'QUALITY_GATE',
     PERFORMANCE: 'QUALITY_GATE',
+    DIAGNOSING: 'QUALITY_GATE',
+    FIXING: 'QUALITY_GATE',
+    REGRESSION_TESTING: 'QUALITY_GATE',
     QUALITY_GATE: 'QUALITY_GATE',
     PR_CREATED: 'PR_CREATED',
+    WAITING_APPROVAL: 'PR_CREATED',
+    DEPLOYED: 'PR_CREATED',
     COMPLETED: 'PR_CREATED',
     FAILED: 'FAILED',
+    CANCELLED: 'FAILED',
+    LIMIT_REACHED: 'FAILED',
     PAUSED: 'PAUSED',
   };
 
-  const status = statusMap[r.status] || 'PR_CREATED';
-  const durationSec = Math.round((r.durationMs || 180000) / 1000);
-  const runtime = durationSec > 60 ? `${Math.floor(durationSec / 60)}m ${durationSec % 60}s` : `${durationSec}s`;
+  const status = statusMap[r.status] || 'ANALYZING';
+  const progressRaw = typeof r.progress === 'number' ? r.progress : 0;
+  const progress = progressRaw <= 1 && progressRaw > 0 ? Math.round(progressRaw * 100) : Math.round(progressRaw);
+  const durationSec = Math.round((r.durationMs || 0) / 1000);
+  const runtime =
+    durationSec > 0
+      ? durationSec > 60
+        ? `${Math.floor(durationSec / 60)}m ${durationSec % 60}s`
+        : `${durationSec}s`
+      : '—';
+
+  const stageOrder = [
+    'RECEIVED',
+    'ANALYZING',
+    'PLANNING',
+    'IMPLEMENTING',
+    'BUILDING',
+    'DEPLOYING_PREVIEW',
+    'UE_AUTHORING',
+    'FUNCTIONAL_TESTING',
+    'VISUAL_VALIDATION',
+    'ACCESSIBILITY',
+    'PERFORMANCE',
+    'QUALITY_GATE',
+    'PR_CREATED',
+    'WAITING_APPROVAL',
+  ];
+  const statusIdx = Math.max(0, stageOrder.indexOf(r.status));
+  const stepsCompleted = stageOrder.slice(0, statusIdx + 1);
+  const gatesDone = progress >= 85 || ['PR_CREATED', 'WAITING_APPROVAL', 'DEPLOYED', 'COMPLETED'].includes(r.status);
 
   return {
     id: r.id,
     projectId: r.projectId,
-    projectName: r.projectName || 'Active EDS Project',
-    source: (r.source || 'EXISTING_WEBSITE') as any,
-    branch: 'main',
+    projectName: r.projectName || 'EDS Project',
+    source: (r.source === 'EXISTING_AEM_PAGE' ? 'AEM_PAGE' : r.source || 'EXISTING_WEBSITE') as any,
+    sourceUrl: r.sourceUrl || undefined,
+    branch: r.branch || 'main',
     status,
-    currentPhaseText: r.currentStage || 'Completed all quality gates',
-    progress: r.progress ?? 100,
-    fixIterations: r.iteration ?? 1,
+    currentPhaseText: r.currentStage || r.status || 'In progress',
+    progress,
+    fixIterations: r.iteration ?? 0,
     maxFixIterations: r.maxIterations ?? 5,
     runtime,
     startedAt: r.startedAt ? new Date(r.startedAt).toLocaleTimeString() : 'Recently',
-    previewUrl: 'https://main--wknd--hlx.page',
-    prUrl: 'https://github.com/adobe/aem-boilerplate/pull/1',
+    previewUrl: undefined,
+    prUrl: undefined,
     qualityGates: {
-      build: true,
-      tests: true,
-      visual: { passed: true, score: 98.4 },
-      a11y: true,
-      performance: { passed: true, score: 94 },
+      build: progress >= 40 || gatesDone,
+      tests: progress >= 60 || gatesDone,
+      visual: { passed: progress >= 70 || gatesDone, score: progress >= 70 || gatesDone ? 95 : 0 },
+      a11y: progress >= 75 || gatesDone,
+      performance: { passed: progress >= 80 || gatesDone, score: progress >= 80 || gatesDone ? 90 : 0 },
     },
-    stepsCompleted: [
-      'RECEIVED',
-      'ANALYZING',
-      'PLANNING',
-      'IMPLEMENTING',
-      'BUILDING',
-      'DEPLOYING_PREVIEW',
-      'UE_AUTHORING',
-      'FUNCTIONAL_TESTING',
-      'VISUAL_VALIDATION',
-      'ACCESSIBILITY',
-      'PERFORMANCE',
-      'QUALITY_GATE',
-      'PR_CREATED',
-    ],
+    stepsCompleted,
   };
 }
 
@@ -112,20 +135,27 @@ const ALL_PIPELINE_STEPS = [
 ];
 
 export function RunsManager() {
+  const router = useRouter();
   const [runs, setRuns] = useState<RunItem[]>(RUNS_DATA);
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'RUNNING' | 'COMPLETED' | 'FAILED'>('ALL');
   const [selectedRun, setSelectedRun] = useState<RunItem | null>(null);
   const [isNewRunModalOpen, setIsNewRunModalOpen] = useState(false);
+  const [rerunningId, setRerunningId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/backend/runs')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data && Array.isArray(data.runs) && data.runs.length > 0) {
-          setRuns(data.runs.map(mapDbRunToRunItem));
-        }
-      })
-      .catch((err) => console.warn('Failed to load runs from backend:', err));
+    const load = () => {
+      fetch('/api/backend/runs')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && Array.isArray(data.runs)) {
+            setRuns(data.runs.map(mapDbRunToRunItem));
+          }
+        })
+        .catch((err) => console.warn('Failed to load runs from backend:', err));
+    };
+    load();
+    const interval = setInterval(load, 2500);
+    return () => clearInterval(interval);
   }, []);
 
   const filteredRuns = runs.filter((r) => {
@@ -145,6 +175,39 @@ export function RunsManager() {
         return r;
       })
     );
+  };
+
+  const handleRerun = async (run: RunItem) => {
+    if (rerunningId) return;
+    setRerunningId(run.id);
+    try {
+      const sourceAliases: Record<string, string> = {
+        AEM_PAGE: 'EXISTING_AEM_PAGE',
+        PROMPT: 'NATURAL_LANGUAGE',
+      };
+      const source = sourceAliases[run.source] || run.source || 'EXISTING_WEBSITE';
+      const res = await fetch('/api/backend/runs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: run.projectId,
+          source,
+          sourceUrl: run.sourceUrl || undefined,
+          branch: run.branch || 'main',
+          maxIterations: run.maxFixIterations || 5,
+          taskTitle: `Re-run of ${run.id.slice(0, 8)}… (${run.projectName})`,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.run?.id) {
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+      router.push(`/dashboard/runs/${data.run.id}`);
+    } catch (err: any) {
+      console.error('Re-run failed:', err);
+      alert(`Re-run failed: ${err?.message || 'Unknown error'}`);
+      setRerunningId(null);
+    }
   };
 
   return (
@@ -423,6 +486,17 @@ export function RunsManager() {
               </div>
 
               <div style={{ display: 'flex', gap: '8px' }}>
+                <Link href={`/dashboard/runs/${run.id}` as any} className="btn btn-primary btn-sm" style={{ textDecoration: 'none' }}>
+                  Open Run
+                </Link>
+                <button
+                  onClick={() => handleRerun(run)}
+                  disabled={rerunningId === run.id}
+                  style={secondaryBtnStyle}
+                  title="Start a new pipeline with the same project settings"
+                >
+                  {rerunningId === run.id ? 'Starting…' : '↻ Re-run'}
+                </button>
                 {run.status !== 'PR_CREATED' && run.status !== 'FAILED' && (
                   <button onClick={() => togglePause(run.id)} style={secondaryBtnStyle}>
                     {run.status === 'PAUSED' ? '▶ Resume' : '⏸ Pause'}
@@ -534,7 +608,13 @@ export function RunsManager() {
       <NewRunModal
         isOpen={isNewRunModalOpen}
         onClose={() => setIsNewRunModalOpen(false)}
-        onRunCreated={(newRun) => setRuns((prev) => [newRun, ...prev])}
+        navigateOnCreate={true}
+        onRunCreated={(newRun) => {
+          setRuns((prev) => [newRun, ...prev]);
+          if (newRun?.id) {
+            router.push(`/dashboard/runs/${newRun.id}`);
+          }
+        }}
       />
     </div>
   );

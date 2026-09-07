@@ -1,19 +1,62 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useProjects } from '../../lib/project-store';
+
+type UiSourceType = 'FIGMA' | 'EXISTING_WEBSITE' | 'AEM_PAGE' | 'EXISTING_EDS_PROJECT' | 'SCREENSHOT' | 'PROMPT';
 
 interface NewRunModalProps {
   isOpen: boolean;
   onClose: () => void;
   onRunCreated?: (runData: any) => void;
+  /** Prefill when launched from a project detail page */
+  initialProjectId?: string;
+  initialSourceType?: UiSourceType;
+  initialSourceUrl?: string;
+  initialBranch?: string;
+  /** Navigate to /dashboard/runs/:id after a successful create (default true) */
+  navigateOnCreate?: boolean;
 }
 
-export function NewRunModal({ isOpen, onClose, onRunCreated }: NewRunModalProps) {
+const SOURCE_TO_API: Record<UiSourceType, string> = {
+  FIGMA: 'FIGMA',
+  EXISTING_WEBSITE: 'EXISTING_WEBSITE',
+  AEM_PAGE: 'EXISTING_AEM_PAGE',
+  EXISTING_EDS_PROJECT: 'EXISTING_EDS_PROJECT',
+  SCREENSHOT: 'SCREENSHOT',
+  PROMPT: 'NATURAL_LANGUAGE',
+};
+
+function mapUiSourceToApi(source: UiSourceType): string {
+  return SOURCE_TO_API[source] ?? 'EXISTING_WEBSITE';
+}
+
+function mapProjectSourceToUi(sourceType?: string): UiSourceType {
+  const s = (sourceType || '').toUpperCase();
+  if (s === 'FIGMA') return 'FIGMA';
+  if (s === 'EXISTING_AEM_PAGE' || s === 'AEM_PAGE') return 'AEM_PAGE';
+  if (s === 'EXISTING_EDS_PROJECT' || s === 'EXISTING_EDS_REPO') return 'EXISTING_EDS_PROJECT';
+  if (s === 'SCREENSHOT') return 'SCREENSHOT';
+  if (s === 'NATURAL_LANGUAGE' || s === 'PROMPT') return 'PROMPT';
+  return 'EXISTING_WEBSITE';
+}
+
+export function NewRunModal({
+  isOpen,
+  onClose,
+  onRunCreated,
+  initialProjectId,
+  initialSourceType,
+  initialSourceUrl,
+  initialBranch,
+  navigateOnCreate = true,
+}: NewRunModalProps) {
+  const router = useRouter();
   const { projects } = useProjects();
   const [projectId, setProjectId] = useState('');
   const [taskTitle, setTaskTitle] = useState('');
-  const [sourceType, setSourceType] = useState<'FIGMA' | 'EXISTING_WEBSITE' | 'AEM_PAGE' | 'PROMPT'>('FIGMA');
+  const [sourceType, setSourceType] = useState<UiSourceType>('FIGMA');
   const [sourceUrl, setSourceUrl] = useState('');
   const [branch, setBranch] = useState('main');
   const [maxFixIterations, setMaxFixIterations] = useState(5);
@@ -22,10 +65,33 @@ export function NewRunModal({ isOpen, onClose, onRunCreated }: NewRunModalProps)
   const [submittedStatus, setSubmittedStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    if (projects.length > 0 && !projectId) {
-      setProjectId(projects[0]!.id);
+    if (!isOpen) return;
+
+    const preferredId = initialProjectId || projects[0]?.id || '';
+    const selected = projects.find((p) => p.id === preferredId) || projects[0];
+
+    if (selected) {
+      setProjectId(selected.id);
+      setBranch(initialBranch || selected.branch || 'main');
+      setSourceType(
+        initialSourceType || mapProjectSourceToUi(selected.sourceType),
+      );
+      setSourceUrl(
+        initialSourceUrl ||
+          selected.sourceUrl ||
+          selected.aemEnvironment ||
+          '',
+      );
+      if (!taskTitle) {
+        setTaskTitle(`EDS pipeline for ${selected.name}`);
+      }
+    } else if (initialProjectId) {
+      setProjectId(initialProjectId);
+      if (initialBranch) setBranch(initialBranch);
+      if (initialSourceType) setSourceType(initialSourceType);
+      if (initialSourceUrl) setSourceUrl(initialSourceUrl);
     }
-  }, [projects, projectId]);
+  }, [isOpen, initialProjectId, initialSourceType, initialSourceUrl, initialBranch, projects]);
 
   if (!isOpen) return null;
 
@@ -34,63 +100,74 @@ export function NewRunModal({ isOpen, onClose, onRunCreated }: NewRunModalProps)
     setIsSubmitting(true);
     setSubmittedStatus(null);
 
+    const apiSource = mapUiSourceToApi(sourceType);
     const payload = {
       projectId,
-      taskTitle,
-      sourceType,
-      sourceUrl,
-      branch,
-      maxFixIterations,
+      source: apiSource,
+      sourceUrl: sourceUrl || undefined,
+      branch: branch || undefined,
+      maxIterations: maxFixIterations,
       visualThreshold,
+      taskTitle: taskTitle || undefined,
     };
 
     try {
-      // Dispatch run via REST API if available
-      const res = await fetch('/api/runs', {
+      const res = await fetch('/api/backend/runs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-      }).catch(() => null);
+      });
 
-      let createdRun: any = null;
-      if (res && res.ok) {
-        createdRun = await res.json();
-      } else {
-        // Fallback local simulated run
-        createdRun = {
-          id: `RUN-${Math.floor(100000 + Math.random() * 900000)}`,
-          projectId,
-          projectName: projectId === 'proj-001' ? 'Product Website' : 'Banking Portal',
-          source: sourceType,
-          branch: `aeds/run-${Date.now()}`,
-          status: 'ANALYZING',
-          currentPhaseText: 'Analyzing source structure and generating Design IR...',
-          progress: 10,
-          fixIterations: 0,
-          maxFixIterations,
-          runtime: '0m 05s',
-          startedAt: 'Just now',
-          qualityGates: {
-            build: true,
-            tests: false,
-            visual: { passed: false, score: 0 },
-            a11y: false,
-            performance: { passed: false, score: 0 },
-          },
-          stepsCompleted: ['RECEIVED'],
-        };
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        const detail =
+          data?.details?.[0]?.message ||
+          data?.error ||
+          `HTTP ${res.status}`;
+        throw new Error(detail);
       }
 
-      setSubmittedStatus('Run successfully queued in BullMQ agent-queue!');
-      if (onRunCreated) {
-        onRunCreated(createdRun);
+      const run = data.run;
+      if (!run?.id) {
+        throw new Error('API did not return a run id');
       }
+
+      const selectedProject = projects.find((p) => p.id === projectId);
+      const listItem = {
+        id: run.id,
+        projectId: run.projectId || projectId,
+        projectName: selectedProject?.name || 'EDS Project',
+        source: sourceType === 'AEM_PAGE' ? 'AEM_PAGE' : sourceType === 'PROMPT' ? 'EXISTING_WEBSITE' : sourceType,
+        branch: branch || 'main',
+        status: 'ANALYZING' as const,
+        currentPhaseText: run.status || 'RECEIVED',
+        progress: run.progress ?? 0,
+        fixIterations: 0,
+        maxFixIterations,
+        runtime: '0s',
+        startedAt: 'Just now',
+        qualityGates: {
+          build: false,
+          tests: false,
+          visual: { passed: false, score: 0 },
+          a11y: false,
+          performance: { passed: false, score: 0 },
+        },
+        stepsCompleted: ['RECEIVED'],
+      };
+
+      setSubmittedStatus(`Run ${run.id} queued`);
+      onRunCreated?.(listItem);
 
       setTimeout(() => {
         setIsSubmitting(false);
         setSubmittedStatus(null);
         onClose();
-      }, 1200);
+        if (navigateOnCreate) {
+          router.push(`/dashboard/runs/${run.id}`);
+        }
+      }, 600);
     } catch (err: any) {
       setSubmittedStatus(`Error dispatching run: ${err.message}`);
       setIsSubmitting(false);
@@ -128,7 +205,6 @@ export function NewRunModal({ isOpen, onClose, onRunCreated }: NewRunModalProps)
           flexDirection: 'column',
         }}
       >
-        {/* Header */}
         <div
           style={{
             padding: '20px 24px',
@@ -138,19 +214,17 @@ export function NewRunModal({ isOpen, onClose, onRunCreated }: NewRunModalProps)
             alignItems: 'center',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '20px' }}>⚡</span>
-            <div>
-              <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
-                Dispatch Autonomous Run
-              </h2>
-              <p style={{ fontSize: '12px', margin: '2px 0 0', color: 'var(--text-muted)' }}>
-                Enqueue autonomous EDS pipeline execution with self-healing gates
-              </p>
-            </div>
+          <div>
+            <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+              Dispatch Autonomous Run
+            </h2>
+            <p style={{ fontSize: '12px', margin: '2px 0 0', color: 'var(--text-muted)' }}>
+              Creates a real agent run via the API and opens its detail page
+            </p>
           </div>
           <button
             onClick={onClose}
+            type="button"
             style={{
               background: 'transparent',
               border: 'none',
@@ -165,16 +239,23 @@ export function NewRunModal({ isOpen, onClose, onRunCreated }: NewRunModalProps)
           </button>
         </div>
 
-        {/* Form Body */}
         <form onSubmit={handleSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
-          {/* Target Project */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
               Target Project
             </label>
             <select
               value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
+              onChange={(e) => {
+                const id = e.target.value;
+                setProjectId(id);
+                const p = projects.find((x) => x.id === id);
+                if (p) {
+                  setBranch(p.branch || 'main');
+                  setSourceType(mapProjectSourceToUi(p.sourceType));
+                  setSourceUrl(p.sourceUrl || p.aemEnvironment || '');
+                }
+              }}
               disabled={projects.length === 0}
               required
               style={{
@@ -199,7 +280,6 @@ export function NewRunModal({ isOpen, onClose, onRunCreated }: NewRunModalProps)
             </select>
           </div>
 
-          {/* Task Goal */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
               Task Objective / Block Goal
@@ -222,7 +302,6 @@ export function NewRunModal({ isOpen, onClose, onRunCreated }: NewRunModalProps)
             />
           </div>
 
-          {/* Source Type & Input */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
@@ -230,7 +309,7 @@ export function NewRunModal({ isOpen, onClose, onRunCreated }: NewRunModalProps)
               </label>
               <select
                 value={sourceType}
-                onChange={(e) => setSourceType(e.target.value as any)}
+                onChange={(e) => setSourceType(e.target.value as UiSourceType)}
                 style={{
                   background: 'var(--bg-subtle)',
                   border: '1px solid var(--border-default)',
@@ -244,6 +323,8 @@ export function NewRunModal({ isOpen, onClose, onRunCreated }: NewRunModalProps)
                 <option value="FIGMA">Figma File</option>
                 <option value="EXISTING_WEBSITE">Live Website</option>
                 <option value="AEM_PAGE">AEM Page</option>
+                <option value="EXISTING_EDS_PROJECT">Existing EDS Repo</option>
+                <option value="SCREENSHOT">Screenshot</option>
                 <option value="PROMPT">Text Prompt</option>
               </select>
             </div>
@@ -253,11 +334,11 @@ export function NewRunModal({ isOpen, onClose, onRunCreated }: NewRunModalProps)
                 Source Reference URL
               </label>
               <input
-                type="text"
+                type="url"
                 value={sourceUrl}
                 onChange={(e) => setSourceUrl(e.target.value)}
                 placeholder="https://..."
-                required
+                required={sourceType !== 'PROMPT'}
                 style={{
                   background: 'var(--bg-subtle)',
                   border: '1px solid var(--border-default)',
@@ -271,7 +352,6 @@ export function NewRunModal({ isOpen, onClose, onRunCreated }: NewRunModalProps)
             </div>
           </div>
 
-          {/* Settings Grid */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
@@ -316,7 +396,6 @@ export function NewRunModal({ isOpen, onClose, onRunCreated }: NewRunModalProps)
             </div>
           </div>
 
-          {/* Visual Gate Slider */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
@@ -351,7 +430,6 @@ export function NewRunModal({ isOpen, onClose, onRunCreated }: NewRunModalProps)
             </div>
           )}
 
-          {/* Actions */}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px' }}>
             <button
               type="button"
@@ -372,7 +450,7 @@ export function NewRunModal({ isOpen, onClose, onRunCreated }: NewRunModalProps)
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !projectId}
               style={{
                 background: 'var(--color-primary)',
                 border: 'none',
@@ -385,20 +463,10 @@ export function NewRunModal({ isOpen, onClose, onRunCreated }: NewRunModalProps)
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                boxShadow: '0 2px 8px rgba(99, 102, 241, 0.4)',
+                opacity: isSubmitting || !projectId ? 0.7 : 1,
               }}
             >
-              {isSubmitting ? (
-                <>
-                  <span className="spinner">◌</span>
-                  <span>Dispatching to Queue...</span>
-                </>
-              ) : (
-                <>
-                  <span>🚀</span>
-                  <span>Dispatch Run</span>
-                </>
-              )}
+              {isSubmitting ? 'Dispatching…' : 'Dispatch Run'}
             </button>
           </div>
         </form>
