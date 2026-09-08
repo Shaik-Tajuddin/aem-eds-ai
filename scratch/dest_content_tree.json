@@ -1,0 +1,155 @@
+{
+  "id": "jcr:content",
+  "componentType": "core/franklin/components/page/v1/page",
+  "properties": {
+    "cq:tags": [
+      "wknd-shared:customer-journey/engage",
+      "wknd-shared:customer-journey/support"
+    ],
+    "jcr:created": "2026-09-01T10:40:23.627Z",
+    "cq:lastReplicationAction": "Activate",
+    "cq:lastReplicatedBy": "stajuddin@wearebarbarian.com",
+    "jcr:createdBy": "stajuddin@wearebarbarian.com",
+    "cq:lastReplicatedBy_publish": "stajuddin@wearebarbarian.com",
+    "jcr:title": "About Us",
+    "jcr:uuid": "58469f06-b1a9-4fd4-b0da-f205f58f40ee",
+    "cq:isDelivered": false,
+    "jcr:versionHistory": "3537fffa-3290-4a5d-95c3-b800194ccebe",
+    "jcr:predecessors": [
+      "808be9fe-23bf-4e7a-842c-93b33f4611eb"
+    ],
+    "jcr:isCheckedOut": true,
+    "jcr:mixinTypes": [
+      "mix:versionable",
+      "cq:ReplicationStatus2"
+    ],
+    "cq:lastReplicationAction_publish": "Activate",
+    "jcr:description": "WKND is a collective of outdoors, music, crafts, adventure sports, and travel enthusiasts that want to share our experiences, connections, and expertise with the world.",
+    "cq:lastModified": "2026-09-08T10:56:16.976Z",
+    "cq:lastModifiedBy": "stajuddin@wearebarbarian.com",
+    "cq:lastReplicated": "2026-09-08T11:04:13.335Z",
+    "cq:lastReplicated_publish": "2026-09-08T11:04:13.335Z",
+    "jcr:baseVersion": "808be9fe-23bf-4e7a-842c-93b33f4611eb"
+  },
+  "items": [
+    {
+      "capi-key": "0",
+      "capi-index": 0,
+      "id": "root",
+      "componentType": "core/franklin/components/root/v1/root",
+      "properties": {
+        "cq:lastModified": "2026-09-08T10:53:48.979Z",
+        "cq:lastModifiedBy": "stajuddin@wearebarbarian.com"
+      },
+      "items": [
+        {
+          "capi-key": "0:0",
+          "capi-index": 0,
+          "id": "section_contributors",
+          "componentType": "core/franklin/components/section/v1/section",
+          "properties": {
+            "aueComponentId": "section",
+            "modelFields": [
+              "name@text",
+              "style@multiselect"
+            ],
+            "cq:lastModified": "2026-09-08T10:53:48.981Z",
+            "name": "Contributors",
+            "cq:lastModifiedBy": "stajuddin@wearebarbarian.com",
+            "model": "section"
+          },
+          "items": [
+            {
+              "capi-key": "0:0:0",
+              "capi-index": 0,
+              "id": "title_contributors",
+              "componentType": "core/franklin/components/title/v1/title",
+              "properties": {
+                "aueComponentId": "title",
+                "titleType": "h2",
+                "modelFields": [
+                  "title@text",
+                  "titleType@select"
+                ],
+                "cq:lastModified": "2026-09-08T10:53:48.981Z",
+                "cq:lastModifiedBy": "stajuddin@wearebarbarian.com",
+                "model": "title",
+                "title": "Our Contributors"
+              },
+              "items": []
+            },
+            {
+              "capi-key": "0:0:1",
+              "capi-index": 1,
+              "id": "text_contributors",
+              "componentType": "core/franklin/components/text/v1/text",
+              "properties": {
+                "aueComponentId": "text",
+                "modelFields": [
+                  "text@richtext"
+                ],
+                "cq:lastModified": "2026-09-08T10:53:48.982Z",
+                "cq:lastModifiedBy": "stajuddin@wearebarbarian.com",
+                "model": "text",
+                "text": "<p><i>Meet the outstanding individuals responsible for bringing you the most compelling stories across the globe.</i></p>"
+              },
+              "items": []
+            },
+            {
+              "capi-key": "0:0:2",
+              "capi-index": 2,
+              "id": "cards_contributors",
+              "componentType": "core/franklin/components/block/v1/block",
+              "properties": {
+                "aueComponentId": "cards",
+                "modelFields": [
+                  "name@text"
+                ],
+                "cq:lastModified": "2026-09-08T10:53:48.982Z",
+                "name": "Cards",
+                "cq:lastModifiedBy": "stajuddin@wearebarbarian.com",
+                "model": "cards"
+              },
+              "items": [
+                {
+                  "capi-key": "0:0:2:0",
+                  "capi-index": 0,
+                  "id": "card_stacey",
+                  "componentType": "core/franklin/components/block/v1/block/item",
+                  "properties": {
+                    "image": "/content/dam/wknd/en/contributors/stacey-roswells.jpg",
+                    "modelFields": [
+                      "image@reference",
+                      "text@richtext"
+                    ],
+                    "cq:lastModified": "2026-09-08T11:03:04.615Z",
+                    "cq:lastModifiedBy": "stajuddin@wearebarbarian.com",
+                    "text": "<p><a href=\"/content/experience-fragments/wknd/language-masters/en/contributors/stacey-roswells/master\">/content/experience-fragments/wknd/language-masters/en/contributors/stacey-roswells/master</a></p><p><strong>Stacey Roswells</strong></p><p>Artist | Photographer | Traveler</p>"
+                  },
+                  "items": []
+                },
+                {
+                  "capi-key": "0:0:2:1",
+                  "capi-index": 1,
+                  "id": "card_jake",
+                  "componentType": "core/franklin/components/block/v1/block/item",
+                  "properties": {
+                    "image": "/content/dam/wknd/en/contributors/alex-iby.jpg",
+                    "modelFields": [
+                      "image@reference",
+                      "text@richtext"
+                    ],
+                    "cq:lastModified": "2026-09-08T11:03:04.615Z",
+                    "cq:lastModifiedBy": "stajuddin@wearebarbarian.com",
+                    "text": "<p><a href=\"/content/experience-fragments/wknd/language-masters/en/contributors/jake-hammer/master\">/content/experience-fragments/wknd/language-masters/en/contributors/jake-hammer/master</a></p><p><strong>Jake Hammer</strong></p><p>Influencer | Writer</p>"
+                  },
+                  "items": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

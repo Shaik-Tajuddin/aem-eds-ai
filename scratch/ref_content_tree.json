@@ -1,0 +1,224 @@
+{
+  "id": "jcr:content",
+  "componentType": "wknd/components/page",
+  "properties": {
+    "cq:tags": [
+      "wknd-shared:customer-journey/engage",
+      "wknd-shared:customer-journey/support"
+    ],
+    "jcr:created": "2026-08-24T23:11:52.320Z",
+    "cq:lastReplicationAction": "Activate",
+    "cq:lastReplicatedBy": "stajuddin@wearebarbarian.com",
+    "jcr:createdBy": "admin",
+    "cq:lastReplicatedBy_publish": "stajuddin@wearebarbarian.com",
+    "jcr:title": "About Us",
+    "jcr:uuid": "b3b8bacf-23c3-45b0-b475-4ed07f6bd262",
+    "cq:isDelivered": false,
+    "jcr:versionHistory": "64d818d1-17b6-402f-946b-b79ab8594385",
+    "jcr:predecessors": [
+      "47e97248-c35d-4124-9490-cec2411ac0bb"
+    ],
+    "jcr:isCheckedOut": true,
+    "jcr:mixinTypes": [
+      "mix:referenceable",
+      "mix:versionable",
+      "cq:ReplicationStatus2"
+    ],
+    "cq:lastReplicationAction_publish": "Activate",
+    "jcr:description": "WKND is a collective of outdoors, music, crafts, adventure sports, and travel enthusiasts that want to share our experiences, connections, and expertise with the world. ",
+    "cq:lastModified": "2026-09-07T17:01:03.907Z",
+    "cq:lastModifiedBy": "stajuddin@wearebarbarian.com",
+    "cq:lastReplicated": "2026-09-07T17:01:17.527Z",
+    "cq:template": "/conf/wknd/settings/wcm/templates/content-page-template",
+    "cq:lastReplicated_publish": "2026-09-07T17:01:17.527Z",
+    "jcr:baseVersion": "47e97248-c35d-4124-9490-cec2411ac0bb"
+  },
+  "items": [
+    {
+      "capi-key": "0",
+      "capi-index": 0,
+      "id": "root",
+      "componentType": "wknd/components/container",
+      "properties": {},
+      "items": [
+        {
+          "capi-key": "0:0",
+          "capi-index": 0,
+          "id": "container",
+          "componentType": "wknd/components/container",
+          "properties": {
+            "layout": "responsiveGrid",
+            "cq:styleIds": [
+              "1554340406437"
+            ],
+            "jcr:lastModifiedBy": "admin",
+            "jcr:lastModified": "2020-07-08T01:01:11.566Z"
+          },
+          "items": [
+            {
+              "capi-key": "0:0:0",
+              "capi-index": 0,
+              "id": "title",
+              "componentType": "wknd/components/title",
+              "properties": {
+                "jcr:lastModifiedBy": "admin",
+                "jcr:created": "2019-10-18T00:32:41.508Z",
+                "jcr:createdBy": "admin",
+                "jcr:lastModified": "2019-10-18T00:32:41.508Z"
+              },
+              "items": []
+            },
+            {
+              "capi-key": "0:0:1",
+              "capi-index": 1,
+              "id": "title_393953656",
+              "componentType": "wknd/components/title",
+              "properties": {
+                "cq:styleIds": [
+                  "1568996484405"
+                ],
+                "jcr:lastModifiedBy": "admin",
+                "jcr:created": "2019-10-18T20:33:09.506Z",
+                "jcr:createdBy": "admin",
+                "jcr:lastModified": "2019-10-18T20:34:33.242Z",
+                "jcr:title": "Our Contributors",
+                "type": "h2"
+              },
+              "items": []
+            },
+            {
+              "capi-key": "0:0:2",
+              "capi-index": 2,
+              "id": "text_310704238",
+              "componentType": "wknd/components/text",
+              "properties": {
+                "cq:styleIds": [
+                  "1571074070335"
+                ],
+                "jcr:lastModifiedBy": "admin",
+                "jcr:created": "2019-10-18T20:35:20.766Z",
+                "jcr:createdBy": "admin",
+                "jcr:lastModified": "2019-10-18T20:41:11.318Z",
+                "textIsRich": "true",
+                "text": "<p><i>Meet the outstanding individuals responsible for bringing you the most compelling stories across the globe.</i></p>\n"
+              },
+              "items": []
+            },
+            {
+              "capi-key": "0:0:3",
+              "capi-index": 3,
+              "id": "experiencefragment_c",
+              "componentType": "wknd/components/experiencefragment",
+              "properties": {
+                "fragmentVariationPath": "/content/experience-fragments/wknd/language-masters/en/contributors/stacey-roswells/master",
+                "cq:styleIds": [
+                  "1571360196802"
+                ],
+                "jcr:lastModifiedBy": "admin",
+                "jcr:created": "2019-10-18T00:33:00.219Z",
+                "jcr:createdBy": "admin",
+                "jcr:lastModified": "2019-10-18T00:33:00.219Z"
+              },
+              "items": [
+                {
+                  "capi-key": "0:0:3:0",
+                  "capi-index": 0,
+                  "id": "cq:responsive",
+                  "properties": {},
+                  "items": [
+                    {
+                      "capi-key": "0:0:3:0:0",
+                      "capi-index": 0,
+                      "id": "default",
+                      "properties": {
+                        "offset": "0",
+                        "width": "3"
+                      },
+                      "items": []
+                    },
+                    {
+                      "capi-key": "0:0:3:0:1",
+                      "capi-index": 1,
+                      "id": "tablet",
+                      "properties": {
+                        "offset": "0",
+                        "width": "6"
+                      },
+                      "items": []
+                    },
+                    {
+                      "capi-key": "0:0:3:0:2",
+                      "capi-index": 2,
+                      "id": "phone",
+                      "properties": {
+                        "offset": "0",
+                        "width": "12"
+                      },
+                      "items": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "capi-key": "0:0:4",
+              "capi-index": 4,
+              "id": "experiencefragment_c_1974749364",
+              "componentType": "wknd/components/experiencefragment",
+              "properties": {
+                "fragmentVariationPath": "/content/experience-fragments/wknd/language-masters/en/contributors/jake-hammer/master",
+                "cq:styleIds": [
+                  "1571360196802"
+                ],
+                "jcr:lastModifiedBy": "admin",
+                "jcr:created": "2019-10-18T00:33:00.219Z",
+                "jcr:createdBy": "admin",
+                "jcr:lastModified": "2019-10-18T20:11:54.455Z"
+              },
+              "items": [
+                {
+                  "capi-key": "0:0:4:0",
+                  "capi-index": 0,
+                  "id": "cq:responsive",
+                  "properties": {},
+                  "items": [
+                    {
+                      "capi-key": "0:0:4:0:0",
+                      "capi-index": 0,
+                      "id": "default",
+                      "properties": {
+                        "offset": "0",
+                        "width": "3"
+                      },
+                      "items": []
+                    },
+                    {
+                      "capi-key": "0:0:4:0:1",
+                      "capi-index": 1,
+                      "id": "tablet",
+                      "properties": {
+                        "offset": "0",
+                        "width": "6"
+                      },
+                      "items": []
+                    },
+                    {
+                      "capi-key": "0:0:4:0:2",
+                      "capi-index": 2,
+                      "id": "phone",
+                      "properties": {
+                        "offset": "0",
+                        "width": "12"
+                      },
+                      "items": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
