@@ -28,7 +28,7 @@ interface RunComparisonData {
 const RUN_A: RunComparisonData = {
   id: 'RUN-000142',
   projectName: 'Product Website',
-  branch: 'aeds/run-RUN-000142',
+  branch: 'ai-demo-project',
   status: 'QUALITY_GATE',
   runtime: '12m 45s',
   fixIterations: 1,
@@ -147,7 +147,7 @@ const RUN_A: RunComparisonData = {
 const RUN_B: RunComparisonData = {
   id: 'RUN-000139',
   projectName: 'Product Website',
-  branch: 'aeds/run-RUN-000139',
+  branch: 'ai-demo-project',
   status: 'PR_CREATED',
   runtime: '16m 20s',
   fixIterations: 2,

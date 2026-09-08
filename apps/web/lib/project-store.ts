@@ -135,17 +135,36 @@ export async function saveProject(formData: any): Promise<UserProject> {
       defaultBranch: formData.githubBranch || 'main',
       token: formData.githubToken || undefined,
     },
-    aem: (formData.aemAuthorUrl || formData.aemPreviewUrl || formData.aemEnvironment) ? {
-      authorUrl: formData.aemAuthorUrl || undefined,
-      previewUrl: formData.aemPreviewUrl || formData.aemEnvironment || undefined,
-      environment: formData.aemEnvironment || 'production',
-      authoringPath: formData.aemAuthoringPath || undefined,
-    } : undefined,
-    llm: formData.llmProvider ? {
-      provider: formData.llmProvider,
-      model: formData.llmModel || 'claude-3-5-sonnet',
-      apiKey: formData.llmApiKey || undefined,
-    } : undefined,
+    aem:
+      formData.aemAuthorUrl ||
+      formData.aemPreviewUrl ||
+      formData.aemEnvironment ||
+      formData.aemAuthoringPath
+        ? {
+            authorUrl: formData.aemAuthorUrl || undefined,
+            previewUrl: formData.aemPreviewUrl || undefined,
+            environment: formData.aemEnvironment || 'production',
+            authoringPath: formData.aemAuthoringPath || undefined,
+          }
+        : undefined,
+    llm: formData.llmProvider
+      ? {
+          provider: formData.llmProvider,
+          model: formData.llmModel || 'gpt-4o',
+          apiUrl: formData.llmApiUrl || undefined,
+          apiKey: formData.llmApiKey || undefined,
+        }
+      : undefined,
+    quality: {
+      visualThreshold: Number(formData.visualThreshold) || 95,
+      accessibilityThreshold: Number(formData.accessibilityThreshold) || 95,
+      performanceThreshold: Number(formData.performanceThreshold) || 90,
+      maxFixIterations: Number(formData.maxFixIterations) || 5,
+    },
+    limits: {
+      maxRuntimeMinutes: Number(formData.maxRuntimeMinutes) || 30,
+      maxToolCalls: Number(formData.maxToolCalls) || 250,
+    },
   };
 
   let newProject: UserProject;

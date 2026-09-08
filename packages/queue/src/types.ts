@@ -15,9 +15,13 @@ export type QueueName = typeof QUEUE_NAMES[keyof typeof QUEUE_NAMES];
 export const AgentRunJobSchema = z.object({
   runId: z.string().uuid(),
   projectId: z.string().uuid(),
+  /** Project display name — used for work branch `ai-{project_name}` */
+  projectName: z.string().optional(),
   repoOwner: z.string(),
   repoName: z.string(),
   baseBranch: z.string().default('main'),
+  /** Git work branch; defaults to `ai-{project_name}` when omitted */
+  workBranch: z.string().optional(),
   sourceType: z.enum([
     'FIGMA',
     'EXISTING_WEBSITE',

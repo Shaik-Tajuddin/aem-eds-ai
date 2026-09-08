@@ -49,3 +49,22 @@ Source metadata (product, version, path, topic) is required. Old docs are not au
 
 - Enable extension: `docker/postgres/init.sql` (`CREATE EXTENSION vector`)
 - Prefer updating documentation over fine-tuning when Adobe APIs change
+- Bulk ingest local markdown into knowledge:
+
+```bash
+# Direct DB (needs DATABASE_URL in .env) — docs/*.md + README + MASTER BUILD PROMPT
+npm run knowledge:ingest
+
+# Re-ingest (delete same source paths first)
+npm run knowledge:ingest:replace
+
+# Via running API instead of direct DB
+npm run knowledge:ingest -- --api --api-url http://localhost:3001
+
+# Preview only
+npm run knowledge:ingest -- --dry-run
+```
+
+Default Docker DB URL: `postgresql://aeds:aeds_password@localhost:5432/aeds_dev`.
+If ingest fails with password auth errors, align `.env` `DATABASE_URL` with that and restart the API.
+API body limit for `--api` mode is 10MB (`API_BODY_LIMIT_BYTES`).

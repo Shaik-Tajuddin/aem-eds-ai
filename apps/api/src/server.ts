@@ -28,6 +28,8 @@ const host = process.env['API_HOST'] ?? '0.0.0.0';
 
 export async function buildServer() {
   const server = Fastify({
+    // Large enough for bulk knowledge ingest of long markdown (MASTER BUILD PROMPT, etc.)
+    bodyLimit: Number(process.env['API_BODY_LIMIT_BYTES'] ?? 10 * 1024 * 1024),
     logger: {
       level: process.env['LOG_LEVEL'] ?? 'info',
       // Redact sensitive fields from all logs

@@ -1,6 +1,6 @@
 import { Job } from 'bullmq';
 import { AgentRunJobData, AgentRunJobResult } from '@aeds/queue';
-import { AgentOrchestrator } from '@aeds/agent';
+import { AgentOrchestrator, buildWorkBranchName } from '@aeds/agent';
 import { getDatabase, agentRuns, agentEvents, pullRequests, persistUsageFromAgentEvent, persistPendingToolApproval } from '@aeds/database';
 import { eq, and, notInArray } from '@aeds/database';
 
@@ -117,12 +117,18 @@ export async function processAgentRunJob(
 
   // 4. Execute the autonomous pipeline
   try {
+    const workBranch =
+      data.workBranch ||
+      buildWorkBranchName(data.projectName || data.repoName || 'project');
+
     const result = await orchestrator.execute({
       runId: data.runId,
       projectId: data.projectId,
+      projectName: data.projectName,
       repoOwner: data.repoOwner,
       repoName: data.repoName,
       baseBranch: data.baseBranch,
+      workBranch,
       sourceType: data.sourceType,
       sourceUrl: data.sourceUrl,
       authorUrl: data.authorUrl || process.env.AEM_AUTHOR_URL || undefined,
@@ -156,7 +162,7 @@ export async function processAgentRunJob(
             title: `feat(aeds): EDS pipeline run ${data.runId.slice(0, 8)}`,
             body: result.previewUrl ? `Preview: ${result.previewUrl}` : undefined,
             url: result.pullRequestUrl,
-            headBranch: `aeds/run-${data.runId}`,
+            headBranch: result.workBranch,
             baseBranch: data.baseBranch || 'main',
             status: 'open',
             evidenceSummary: {

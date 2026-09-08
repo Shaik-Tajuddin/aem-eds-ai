@@ -4,6 +4,7 @@
 
 export { AgentOrchestrator } from './orchestrator.js';
 export type { OrchestratorRunOptions, RunEventListener } from './orchestrator.js';
+export { buildWorkBranchName } from './work-branch.js';
 export { RunStateMachine } from './state-machine.js';
 export type { StateTransitionEvent, StateTransitionListener } from './state-machine.js';
 export {

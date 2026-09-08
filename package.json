@@ -22,7 +22,9 @@
     "db:push": "turbo run db:push",
     "clean": "turbo run clean",
     "demo": "npx tsx scripts/demo-pipeline.ts",
-    "e2e:demo": "npx tsx scripts/demo-pipeline.ts"
+    "e2e:demo": "npx tsx scripts/demo-pipeline.ts",
+    "knowledge:ingest": "npx tsx scripts/ingest-docs.ts",
+    "knowledge:ingest:replace": "npx tsx scripts/ingest-docs.ts --replace"
   },
   "devDependencies": {
     "@types/node": "^24.0.10",

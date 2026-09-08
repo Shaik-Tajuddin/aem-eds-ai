@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, ChevronRight, Zap } from "lucide-react";
 import { saveProject } from "../../lib/project-store";
 
@@ -787,6 +787,43 @@ export function NewProjectWizard() {
   const [createdProjectId, setCreatedProjectId] = useState<string | null>(null);
   const [startedRunId, setStartedRunId] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // Prefill wizard fields from API/.env defaults once on mount
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/backend/projects/defaults");
+        if (!res.ok) return;
+        const data = await res.json();
+        const defaults = data?.defaults;
+        if (cancelled || !defaults || typeof defaults !== "object") return;
+
+        setFormData((prev) => {
+          const next = { ...prev };
+          for (const [key, value] of Object.entries(defaults)) {
+            if (!(key in next)) continue;
+            if (typeof value === "number" && Number.isFinite(value)) {
+              (next as Record<string, unknown>)[key] = value;
+              continue;
+            }
+            if (typeof value === "string" && value.trim()) {
+              const current = (prev as Record<string, unknown>)[key];
+              if (typeof current === "string" && current.trim() === "") {
+                (next as Record<string, unknown>)[key] = value;
+              }
+            }
+          }
+          return next;
+        });
+      } catch {
+        // Wizard still works with local hardcoded defaults
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const updateData = (partial: Partial<FormData>) =>
     setFormData((prev) => ({ ...prev, ...partial }));

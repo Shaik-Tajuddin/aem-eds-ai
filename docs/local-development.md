@@ -58,6 +58,13 @@ Or apply committed migrations:
 npm run db:migrate
 ```
 
+If `db:migrate` fails with `relation … already exists`, the schema was applied earlier via `db:push` and the migration journal is empty. Baseline once, then migrate:
+
+```bash
+npm run db:baseline --workspace=@aeds/database
+npm run db:migrate
+```
+
 Migrations live in `packages/database/src/migrations/` and are mirrored under `database/migrations/`.
 
 ## Run the platform
@@ -109,6 +116,8 @@ Unit tests always skip live Playwright (`VITEST` / `NODE_ENV=test`).
 | `npm run typecheck` | TypeScript check |
 | `npm run build` | Turbo build |
 | `npm run demo` | Simulated pipeline demo (labeled simulation) |
+| `npm run knowledge:ingest` | Bulk-ingest `docs/*.md` (+ root README / MASTER BUILD PROMPT) into RAG |
+| `npm run knowledge:ingest:replace` | Same, replacing existing docs with matching `source` paths |
 
 ## Project layout
 

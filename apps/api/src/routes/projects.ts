@@ -2,7 +2,13 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { getDatabase } from '@aeds/database';
 import { projects, projectConfigs, repositories, environments } from '@aeds/database';
-import { eq, and, desc, isNull } from '@aeds/database';
+import { eq, desc, isNull } from '@aeds/database';
+import { getProjectFormDefaultsFromEnv } from '../services/project-defaults.js';
+
+function envNumSafe(key: string, fallback: number): number {
+  const n = Number(process.env[key]);
+  return Number.isFinite(n) ? n : fallback;
+}
 
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
@@ -31,7 +37,10 @@ const CreateProjectSchema = z.object({
   }).optional(),
   llm: z.object({
     provider: z.string(),
-    apiUrl: z.string().url().optional(),
+    apiUrl: z.preprocess(
+      (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
+      z.string().url().optional(),
+    ),
     apiKey: z.string().optional(), // stored encrypted
     model: z.string(),
     embeddingModel: z.string().optional(),
@@ -53,6 +62,22 @@ const CreateProjectSchema = z.object({
 
 export const projectsPlugin: FastifyPluginAsync = async (server) => {
   const db = getDatabase();
+
+  // GET /api/projects/defaults — env-based defaults for New Project wizard
+  // Registered before /:id so "defaults" is not captured as an id.
+  server.get(
+    '/defaults',
+    {
+      schema: {
+        tags: ['projects'],
+        summary: 'Get project creation defaults from environment',
+        security: [{ bearerAuth: [] }],
+      },
+    },
+    async (_request, reply) => {
+      return reply.send({ defaults: getProjectFormDefaultsFromEnv() });
+    }
+  );
 
   // GET /api/projects — list all projects for the authenticated user
   server.get(
@@ -123,6 +148,32 @@ export const projectsPlugin: FastifyPluginAsync = async (server) => {
       try {
         const body = CreateProjectSchema.parse(request.body);
         const userId = request.userId ?? 'system';
+        const defaults = getProjectFormDefaultsFromEnv();
+
+        const githubToken = body.github.token || defaults.githubToken || undefined;
+        const githubBranch = body.github.defaultBranch || defaults.githubBranch || 'main';
+
+        const aemAuthorUrl = body.aem?.authorUrl || defaults.aemAuthorUrl || undefined;
+        const aemPreviewUrl = body.aem?.previewUrl || defaults.aemPreviewUrl || undefined;
+        const aemAuthoringPath = body.aem?.authoringPath || defaults.aemAuthoringPath || undefined;
+        const aemEnvironment = body.aem?.environment || defaults.aemEnvironment || 'production';
+        const hasAem = Boolean(aemAuthorUrl || aemPreviewUrl || aemAuthoringPath);
+
+        const llmProvider = body.llm?.provider || defaults.llmProvider || undefined;
+        const llmModel = body.llm?.model || defaults.llmModel || undefined;
+        const llmApiUrl = (body.llm?.apiUrl || defaults.llmApiUrl || '').trim() || undefined;
+        const llmApiKey = body.llm?.apiKey || defaults.llmApiKey || undefined;
+        const hasLlm = Boolean(llmProvider && llmModel);
+
+        const visualThreshold = body.quality?.visualThreshold ?? defaults.visualThreshold;
+        const accessibilityThreshold =
+          body.quality?.accessibilityThreshold ?? defaults.accessibilityThreshold;
+        const performanceThreshold =
+          body.quality?.performanceThreshold ?? defaults.performanceThreshold;
+        const maxFixIterations = body.quality?.maxFixIterations ?? defaults.maxFixIterations;
+        const maxRuntimeMinutes = body.limits?.maxRuntimeMinutes ?? defaults.maxRuntimeMinutes;
+        const maxToolCalls = body.limits?.maxToolCalls ?? defaults.maxToolCalls;
+        const maxLLMCalls = body.limits?.maxLLMCalls ?? envNumSafe('AGENT_MAX_LLM_CALLS', 100);
 
         // Import security module for encryption
         const { encryptSecret } = await import('../services/secrets.js');
@@ -146,21 +197,19 @@ export const projectsPlugin: FastifyPluginAsync = async (server) => {
         await db.insert(repositories).values({
           projectId: project.id,
           fullName: body.github.repository,
-          defaultBranch: body.github.defaultBranch,
-          encryptedToken: body.github.token
-            ? await encryptSecret(body.github.token)
-            : undefined,
+          defaultBranch: githubBranch,
+          encryptedToken: githubToken ? await encryptSecret(githubToken) : undefined,
         });
 
-        // Create AEM environment if provided
-        if (body.aem) {
+        // Create AEM environment if provided or available from env defaults
+        if (hasAem) {
           await db.insert(environments).values({
             projectId: project.id,
             type: 'aem',
-            name: body.aem.environment,
-            authorUrl: body.aem.authorUrl,
-            previewUrl: body.aem.previewUrl,
-            authoringPath: body.aem.authoringPath,
+            name: aemEnvironment,
+            authorUrl: aemAuthorUrl,
+            previewUrl: aemPreviewUrl,
+            authoringPath: aemAuthoringPath,
           });
         }
 
@@ -173,20 +222,19 @@ export const projectsPlugin: FastifyPluginAsync = async (server) => {
           encryptedFigmaToken: body.figma?.token
             ? await encryptSecret(body.figma.token)
             : undefined,
-          llmProvider: body.llm?.provider,
-          llmApiUrl: body.llm?.apiUrl,
-          encryptedLlmApiKey: body.llm?.apiKey
-            ? await encryptSecret(body.llm.apiKey)
-            : undefined,
-          llmModel: body.llm?.model,
-          llmEmbeddingModel: body.llm?.embeddingModel,
-          visualThreshold: body.quality?.visualThreshold ?? 95,
-          accessibilityThreshold: body.quality?.accessibilityThreshold ?? 95,
-          performanceThreshold: body.quality?.performanceThreshold ?? 90,
-          maxFixIterations: body.quality?.maxFixIterations ?? 5,
-          maxRuntimeMinutes: body.limits?.maxRuntimeMinutes ?? 30,
-          maxToolCalls: body.limits?.maxToolCalls ?? 250,
-          maxLLMCalls: body.limits?.maxLLMCalls ?? 100,
+          llmProvider: hasLlm ? llmProvider : undefined,
+          llmApiUrl: hasLlm ? llmApiUrl : undefined,
+          encryptedLlmApiKey:
+            hasLlm && llmApiKey ? await encryptSecret(llmApiKey) : undefined,
+          llmModel: hasLlm ? llmModel : undefined,
+          llmEmbeddingModel: body.llm?.embeddingModel || process.env['LLM_EMBEDDING_MODEL'] || process.env['EMBEDDING_MODEL'] || undefined,
+          visualThreshold,
+          accessibilityThreshold,
+          performanceThreshold,
+          maxFixIterations,
+          maxRuntimeMinutes,
+          maxToolCalls,
+          maxLLMCalls,
         });
 
         return reply.code(201).send({

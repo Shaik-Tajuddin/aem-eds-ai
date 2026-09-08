@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useProjects } from '../../lib/project-store';
 
@@ -28,6 +28,15 @@ const SOURCE_TO_API: Record<UiSourceType, string> = {
   PROMPT: 'NATURAL_LANGUAGE',
 };
 
+const SOURCE_OPTIONS: { value: UiSourceType; label: string }[] = [
+  { value: 'FIGMA', label: 'Figma File' },
+  { value: 'EXISTING_WEBSITE', label: 'Live Website' },
+  { value: 'AEM_PAGE', label: 'AEM Page' },
+  { value: 'EXISTING_EDS_PROJECT', label: 'Existing EDS Repo' },
+  { value: 'SCREENSHOT', label: 'Screenshot' },
+  { value: 'PROMPT', label: 'Text Prompt' },
+];
+
 function mapUiSourceToApi(source: UiSourceType): string {
   return SOURCE_TO_API[source] ?? 'EXISTING_WEBSITE';
 }
@@ -40,6 +49,131 @@ function mapProjectSourceToUi(sourceType?: string): UiSourceType {
   if (s === 'SCREENSHOT') return 'SCREENSHOT';
   if (s === 'NATURAL_LANGUAGE' || s === 'PROMPT') return 'PROMPT';
   return 'EXISTING_WEBSITE';
+}
+
+/** Custom select — native <option> styling is ignored on Windows. */
+function DarkSelect({
+  value,
+  options,
+  onChange,
+  disabled,
+  placeholder,
+}: {
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const selected = options.find((o) => o.value === value);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} style={{ position: 'relative', width: '100%' }}>
+      <button
+        type="button"
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => !disabled && setOpen((v) => !v)}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '8px',
+          background: '#0f1219',
+          border: '1px solid var(--border-default)',
+          borderRadius: 'var(--radius-md)',
+          color: '#ffffff',
+          padding: '10px 14px',
+          fontSize: '13px',
+          outline: 'none',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          textAlign: 'left',
+          opacity: disabled ? 0.6 : 1,
+        }}
+      >
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {selected?.label || placeholder || 'Select…'}
+        </span>
+        <span style={{ color: '#9ca3af', fontSize: '10px', flexShrink: 0 }}>{open ? '▲' : '▼'}</span>
+      </button>
+
+      {open && (
+        <ul
+          role="listbox"
+          style={{
+            position: 'absolute',
+            zIndex: 50,
+            top: 'calc(100% + 4px)',
+            left: 0,
+            right: 0,
+            margin: 0,
+            padding: '4px',
+            listStyle: 'none',
+            background: '#0f1219',
+            border: '1px solid var(--border-default)',
+            borderRadius: 'var(--radius-md)',
+            boxShadow: '0 12px 32px rgba(0,0,0,0.55)',
+            maxHeight: '220px',
+            overflowY: 'auto',
+          }}
+        >
+          {options.map((opt) => {
+            const isActive = opt.value === value;
+            return (
+              <li key={opt.value} role="option" aria-selected={isActive}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange(opt.value);
+                    setOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    background: isActive ? '#2563eb' : 'transparent',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '9px 12px',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) e.currentTarget.style.background = '#1a2233';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  {opt.label}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 export function NewRunModal({
@@ -173,6 +307,14 @@ export function NewRunModal({
     }
   };
 
+  const projectOptions =
+    projects.length === 0
+      ? [{ value: '', label: 'No connected projects (Create a project first)' }]
+      : projects.map((p) => ({
+          value: p.id,
+          label: `${p.name} (${p.repo})`,
+        }));
+
   return (
     <div
       style={{
@@ -198,19 +340,17 @@ export function NewRunModal({
           width: '100%',
           maxWidth: '580px',
           maxHeight: '90vh',
-          overflowY: 'auto',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          flexDirection: 'column',
+          overflow: 'auto',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
         }}
       >
         <div
           style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
             padding: '20px 24px',
             borderBottom: '1px solid var(--border-default)',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
           }}
         >
           <div>
@@ -218,7 +358,7 @@ export function NewRunModal({
               Dispatch Autonomous Run
             </h2>
             <p style={{ fontSize: '12px', margin: '2px 0 0', color: 'var(--text-muted)' }}>
-              Creates a real agent run via the API and opens its detail page
+              Creates a real agent run via the API and opens its detail page.
             </p>
           </div>
           <button
@@ -243,10 +383,12 @@ export function NewRunModal({
             <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
               Target Project
             </label>
-            <select
+            <DarkSelect
               value={projectId}
-              onChange={(e) => {
-                const id = e.target.value;
+              options={projectOptions}
+              disabled={projects.length === 0}
+              placeholder="Select a project…"
+              onChange={(id) => {
                 setProjectId(id);
                 const p = projects.find((x) => x.id === id);
                 if (p) {
@@ -255,28 +397,7 @@ export function NewRunModal({
                   setSourceUrl(p.sourceUrl || '');
                 }
               }}
-              disabled={projects.length === 0}
-              required
-              style={{
-                background: 'var(--bg-subtle)',
-                border: '1px solid var(--border-default)',
-                borderRadius: 'var(--radius-md)',
-                color: 'var(--text-primary)',
-                padding: '10px 14px',
-                fontSize: '13px',
-                outline: 'none',
-              }}
-            >
-              {projects.length === 0 ? (
-                <option value="">No connected projects (Create a project first)</option>
-              ) : (
-                projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({p.repo})
-                  </option>
-                ))
-              )}
-            </select>
+            />
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -306,26 +427,11 @@ export function NewRunModal({
               <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
                 Source Type
               </label>
-              <select
+              <DarkSelect
                 value={sourceType}
-                onChange={(e) => setSourceType(e.target.value as UiSourceType)}
-                style={{
-                  background: 'var(--bg-subtle)',
-                  border: '1px solid var(--border-default)',
-                  borderRadius: 'var(--radius-md)',
-                  color: 'var(--text-primary)',
-                  padding: '10px 14px',
-                  fontSize: '13px',
-                  outline: 'none',
-                }}
-              >
-                <option value="FIGMA">Figma File</option>
-                <option value="EXISTING_WEBSITE">Live Website</option>
-                <option value="AEM_PAGE">AEM Page</option>
-                <option value="EXISTING_EDS_PROJECT">Existing EDS Repo</option>
-                <option value="SCREENSHOT">Screenshot</option>
-                <option value="PROMPT">Text Prompt</option>
-              </select>
+                options={SOURCE_OPTIONS}
+                onChange={(v) => setSourceType(v as UiSourceType)}
+              />
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>

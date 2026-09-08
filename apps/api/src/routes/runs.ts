@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getDatabase } from '@aeds/database';
 import { agentRuns, projects, agentEvents, repositories, pullRequests, projectConfigs, environments, persistUsageFromAgentEvent, persistPendingToolApproval, ueAuthoringTests, listPendingFromSnapshot } from '@aeds/database';
 import { eq, desc, and, notInArray } from '@aeds/database';
-import { AgentOrchestrator, resolveReferenceSourceUrl } from '@aeds/agent';
+import { AgentOrchestrator, resolveReferenceSourceUrl, buildWorkBranchName } from '@aeds/agent';
 import { enqueueAgentRun, getAllQueueMetrics } from '@aeds/queue';
 import {
   abortAllRuns,
@@ -160,6 +160,7 @@ export const runsPlugin: FastifyPluginAsync = async (server) => {
         const [repoOwner, ...repoNameParts] = fullName.split('/');
         const repoName = repoNameParts.join('/') || 'aem-boilerplate';
         const branch = body.branch || repoRow?.defaultBranch || 'main';
+        const workBranch = buildWorkBranchName(project.name);
 
         // Create run record
         const [run] = await db
@@ -292,9 +293,11 @@ export const runsPlugin: FastifyPluginAsync = async (server) => {
             .execute({
               runId: run.id,
               projectId: body.projectId,
+              projectName: project.name,
               repoOwner: repoOwner || 'adobe',
               repoName,
               baseBranch: branch,
+              workBranch,
               sourceType: body.source,
               sourceUrl: referenceSourceUrl,
               authorUrl: envRow?.authorUrl || process.env.AEM_AUTHOR_URL || undefined,
@@ -330,7 +333,7 @@ export const runsPlugin: FastifyPluginAsync = async (server) => {
                     title: `feat(aeds): EDS pipeline run ${run.id.slice(0, 8)}`,
                     body: result.previewUrl ? `Preview: ${result.previewUrl}` : undefined,
                     url: result.pullRequestUrl,
-                    headBranch: `aeds/run-${run.id}`,
+                    headBranch: result.workBranch,
                     baseBranch: branch,
                     status: 'open',
                     evidenceSummary: {
@@ -372,9 +375,11 @@ export const runsPlugin: FastifyPluginAsync = async (server) => {
             await enqueueAgentRun({
               runId: run.id,
               projectId: body.projectId,
+              projectName: project.name,
               repoOwner: repoOwner || 'adobe',
               repoName,
               baseBranch: branch,
+              workBranch,
               sourceType: body.source,
               sourceUrl: referenceSourceUrl,
               iteration: 0,
@@ -691,9 +696,16 @@ export const runsPlugin: FastifyPluginAsync = async (server) => {
         .where(eq(repositories.projectId, run.projectId))
         .limit(1);
 
+      const [project] = await db
+        .select()
+        .from(projects)
+        .where(eq(projects.id, run.projectId))
+        .limit(1);
+
       const fullName = repo?.fullName || 'adobe/aem-boilerplate';
       const [repoOwner, ...rest] = fullName.split('/');
       const repoName = rest.join('/') || 'aem-boilerplate';
+      const workBranch = buildWorkBranchName(project?.name || repoName);
 
       const nextSnapshot = {
         ...snapshot,
@@ -716,9 +728,11 @@ export const runsPlugin: FastifyPluginAsync = async (server) => {
         await enqueueAgentRun({
           runId: id,
           projectId: run.projectId,
+          projectName: project?.name,
           repoOwner: repoOwner || 'adobe',
           repoName,
           baseBranch: repo?.defaultBranch || 'main',
+          workBranch,
           sourceType: (run.source as any) || 'NATURAL_LANGUAGE',
           sourceUrl: run.sourceUrl || undefined,
           iteration: Number(run.iteration || 0),

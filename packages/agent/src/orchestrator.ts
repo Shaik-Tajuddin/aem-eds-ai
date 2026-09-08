@@ -30,6 +30,7 @@ import {
   PIPELINE_STAGE_LABELS,
   stageProgressPercent,
 } from './pipeline-stages.js';
+import { buildWorkBranchName } from './work-branch.js';
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -38,6 +39,8 @@ function sleep(ms: number): Promise<void> {
 export interface OrchestratorRunOptions {
   runId: string;
   projectId: string;
+  /** Used to derive work branch `ai-{project_name}` when workBranch is omitted */
+  projectName?: string;
   repoOwner: string;
   repoName: string;
   baseBranch?: string;
@@ -161,6 +164,7 @@ export class AgentOrchestrator {
     finalStatus: RunStatus;
     files: GeneratedFile[];
     decisions: AgentDecision[];
+    workBranch: string;
     previewUrl?: string;
     pullRequestUrl?: string;
     pullRequestNumber?: number;
@@ -168,7 +172,9 @@ export class AgentOrchestrator {
   }> {
     const { runId, projectId, repoOwner, repoName } = options;
     const baseBranch = options.baseBranch || 'main';
-    const workBranch = options.workBranch || `aeds/run-${runId}`;
+    const workBranch =
+      options.workBranch ||
+      buildWorkBranchName(options.projectName || options.repoName || 'project');
 
     if (options.engine === 'antigravity' || process.env.AGENT_ENGINE === 'antigravity') {
       this.registerAgent(new AntigravityDeveloperAgent());
@@ -405,6 +411,7 @@ export class AgentOrchestrator {
         finalStatus,
         files: Array.from(context.generatedFiles.values()),
         decisions: this.decisions,
+        workBranch,
         previewUrl,
         pullRequestUrl: context.pullRequestUrl,
         pullRequestNumber: context.pullRequestNumber,
