@@ -22,6 +22,7 @@ Working name: **AI EDS Developer** (renameable).
 | [github-integration.md](./github-integration.md) | Octokit, branches, PRs, EDS detection |
 | [figma-integration.md](./figma-integration.md) | Figma REST → Design IR |
 | [universal-editor.md](./universal-editor.md) | Models, validators, authoring tester |
+| [aem-cloud-mcp-authoring-plan.md](./aem-cloud-mcp-authoring-plan.md) | AEM Cloud MCP Content Authoring Plan & MCP Configuration |
 | [testing.md](./testing.md) | Vitest, Playwright, axe, workers |
 | [visual-validation.md](./visual-validation.md) | pixelmatch flow and evidence rules |
 | [evaluation.md](./evaluation.md) | Benchmark tasks + evidence scoring |

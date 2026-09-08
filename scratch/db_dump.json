@@ -1,0 +1,139 @@
+{
+  "projects": [
+    {
+      "id": "994dda39-cfff-4422-843e-e808aef1721f",
+      "owner_id": "00000000-0000-0000-0000-000000000001",
+      "name": "about us wknd test",
+      "description": "Created via New Project Wizard",
+      "health": "UNKNOWN",
+      "created_at": "2026-09-07T08:39:04.456Z",
+      "updated_at": "2026-09-07T16:34:41.141Z",
+      "last_run_at": null,
+      "archived_at": null
+    }
+  ],
+  "environments": [
+    {
+      "id": "bf3407fa-8057-48b5-a438-d4046597358c",
+      "project_id": "994dda39-cfff-4422-843e-e808aef1721f",
+      "type": "aem",
+      "name": "development",
+      "author_url": "https://author-p149251-e1522049.adobeaemcloud.com/",
+      "preview_url": "https://dev--wknd-eds--shaik-tajuddin.aem.live/test/about-us",
+      "production_url": null,
+      "authoring_path": "https://author-p149251-e1522049.adobeaemcloud.com/ui#/aem/universal-editor/canvas/author-p149251-e1522049.adobeaemcloud.com/content/wknd-eds/test/about-us.html",
+      "encrypted_credentials": null,
+      "created_at": "2026-09-07T08:39:04.489Z"
+    }
+  ],
+  "projectConfigs": [
+    {
+      "id": "11353827-f76f-4abb-a746-a1e335191e1c",
+      "project_id": "994dda39-cfff-4422-843e-e808aef1721f",
+      "source_type": "AEM_PAGE",
+      "source_url": "https://publish-p149251-e1522049.adobeaemcloud.com/content/wknd/language-masters/en/about-us.plain.html",
+      "figma_file_url": null,
+      "encrypted_figma_token": null,
+      "llm_provider": "CUSTOM (z-ai/glm-5.3-free)",
+      "llm_api_url": null,
+      "encrypted_llm_api_key": "2a4c28aa157a350f359d1865:ec16241537a9f6d0c23b10ff5ab06fad:b2003e8fc6ecad2a2078f4514eddffb8e0e253a6be547cdd8ca817a97ae4b46659f43d1227dc395e3f85111b546251a0d50755",
+      "llm_model": "z-ai/glm-5.3-free",
+      "llm_embedding_model": null,
+      "visual_threshold": 95,
+      "accessibility_threshold": 95,
+      "performance_threshold": 90,
+      "max_fix_iterations": 5,
+      "required_gates": null,
+      "max_runtime_minutes": 30,
+      "max_tool_calls": 250,
+      "max_llm_calls": 100,
+      "max_estimated_cost_usd": null,
+      "created_at": "2026-09-07T08:39:04.500Z",
+      "updated_at": "2026-09-07T08:39:04.500Z"
+    }
+  ],
+  "repositories": [
+    {
+      "id": "2f482e3d-083d-4e19-8cdf-f2f0d08dede0",
+      "project_id": "994dda39-cfff-4422-843e-e808aef1721f",
+      "provider": "github",
+      "full_name": "Shaik-Tajuddin/wknd-eds",
+      "default_branch": "dev",
+      "is_private": false,
+      "encrypted_token": null,
+      "created_at": "2026-09-07T08:39:04.474Z"
+    }
+  ],
+  "runs": [
+    {
+      "id": "02d338cf-a104-471c-95dc-df433736b1f7",
+      "project_id": "994dda39-cfff-4422-843e-e808aef1721f",
+      "status": "WAITING_APPROVAL",
+      "source": "EXISTING_AEM_PAGE",
+      "source_url": "https://publish-p149251-e1522049.adobeaemcloud.com/content/wknd/language-masters/en/about-us.plain.html",
+      "branch": "dev",
+      "git_commit": "6007080136da308cf9c8f2a5b4c16ada31a3d11a",
+      "model": null,
+      "progress": 100,
+      "current_stage": "WAITING_APPROVAL",
+      "started_at": "2026-09-07T20:16:24.473Z",
+      "completed_at": "2026-09-07T20:20:08.787Z"
+    },
+    {
+      "id": "f7901942-23f7-41ff-8782-26d192730dd3",
+      "project_id": "994dda39-cfff-4422-843e-e808aef1721f",
+      "status": "WAITING_APPROVAL",
+      "source": "EXISTING_AEM_PAGE",
+      "source_url": "https://publish-p149251-e1522049.adobeaemcloud.com/content/wknd/language-masters/en/about-us.plain.html",
+      "branch": "dev",
+      "git_commit": "ecc0eb65608c90a355e1b3cee65ce089babce8af",
+      "model": null,
+      "progress": 100,
+      "current_stage": "WAITING_APPROVAL",
+      "started_at": "2026-09-07T20:03:51.771Z",
+      "completed_at": "2026-09-07T20:08:37.774Z"
+    },
+    {
+      "id": "3fc5edce-1c5b-4a1e-982d-3078e588e00f",
+      "project_id": "994dda39-cfff-4422-843e-e808aef1721f",
+      "status": "FAILED",
+      "source": "EXISTING_AEM_PAGE",
+      "source_url": "https://publish-p149251-e1522049.adobeaemcloud.com/content/wknd/language-masters/en/about-us.plain.html",
+      "branch": "dev",
+      "git_commit": null,
+      "model": null,
+      "progress": 8,
+      "current_stage": "Failed",
+      "started_at": "2026-09-07T19:50:51.335Z",
+      "completed_at": "2026-09-07T19:56:43.158Z"
+    },
+    {
+      "id": "732cd019-141c-4d29-9174-07f549ab1d09",
+      "project_id": "994dda39-cfff-4422-843e-e808aef1721f",
+      "status": "PAUSED",
+      "source": "EXISTING_AEM_PAGE",
+      "source_url": "https://publish-p149251-e1522049.adobeaemcloud.com/content/wknd/language-masters/en/about-us.plain.html",
+      "branch": "dev",
+      "git_commit": null,
+      "model": null,
+      "progress": 23,
+      "current_stage": "Paused",
+      "started_at": "2026-09-07T18:29:34.129Z",
+      "completed_at": null
+    },
+    {
+      "id": "8629cea8-37ac-4c81-a36f-0d855ecb3a4f",
+      "project_id": "994dda39-cfff-4422-843e-e808aef1721f",
+      "status": "PAUSED",
+      "source": "EXISTING_AEM_PAGE",
+      "source_url": "https://publish-p149251-e1522049.adobeaemcloud.com/content/wknd/language-masters/en/about-us.plain.html",
+      "branch": "dev",
+      "git_commit": null,
+      "model": null,
+      "progress": 23,
+      "current_stage": "Build EDS Blocks",
+      "started_at": "2026-09-07T18:21:16.963Z",
+      "completed_at": null
+    }
+  ]
+}
