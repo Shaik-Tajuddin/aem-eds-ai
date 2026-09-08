@@ -37,8 +37,8 @@ const PIPELINE_STAGE_DEFS: Array<{ name: string; statusKey: string }> = [
   { name: 'Plan', statusKey: 'PLANNING' },
   { name: 'Build Blocks', statusKey: 'IMPLEMENTING' },
   { name: 'CSS + JS', statusKey: 'BUILDING' },
-  { name: 'Deploy Preview', statusKey: 'DEPLOYING_PREVIEW' },
   { name: 'UE Models', statusKey: 'UE_AUTHORING' },
+  { name: 'Deploy Preview', statusKey: 'DEPLOYING_PREVIEW' },
   { name: 'Browser Tests', statusKey: 'FUNCTIONAL_TESTING' },
   { name: 'Visual Validation', statusKey: 'VISUAL_VALIDATION' },
   { name: 'Accessibility', statusKey: 'ACCESSIBILITY' },
@@ -271,6 +271,8 @@ export default function RunDetailPage() {
   const [loading, setLoading] = useState(true);
   const [isRerunning, setIsRerunning] = useState(false);
   const [rerunError, setRerunError] = useState<string | null>(null);
+  const [parityLoading, setParityLoading] = useState(false);
+  const [parityMsg, setParityMsg] = useState<string | null>(null);
   const [events, setEvents] = useState<any[]>([]);
   const [consoleScope, setConsoleScope] = useState<string>('ALL');
   const [consoleFollow, setConsoleFollow] = useState(true);
@@ -466,6 +468,35 @@ export default function RunDetailPage() {
     }
   };
 
+  const handlePageParity = async () => {
+    if (!liveRun?.id || parityLoading) return;
+    setParityLoading(true);
+    setParityMsg(null);
+    try {
+      const res = await fetch('/api/backend/parity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          runId: liveRun.id,
+          projectId: liveRun.projectId,
+          fixCss: false,
+          verifyBrowser: true,
+          branch: liveRun.branch || project?.branch || 'main',
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) {
+        throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      }
+      setParityMsg(`Content authored · ${data.phases?.length || 0} phases — refresh evidence`);
+      setRefreshKey((k) => k + 1);
+    } catch (err: unknown) {
+      setParityMsg(err instanceof Error ? err.message : String(err));
+    } finally {
+      setParityLoading(false);
+    }
+  };
+
   const { lines: consoleLines, byPhase: consoleByPhase } = buildStageConsole(events);
 
   useEffect(() => {
@@ -639,6 +670,16 @@ export default function RunDetailPage() {
             </button>
             <button
               type="button"
+              onClick={handlePageParity}
+              className="btn btn-secondary btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              disabled={parityLoading || !liveRun?.projectId}
+              title="Track B: author page content via aem-cloud MCP (uses PR branch when present)"
+            >
+              <span>{parityLoading ? 'Authoring…' : 'Author content & verify'}</span>
+            </button>
+            <button
+              type="button"
               onClick={handleRerun}
               className="btn btn-primary btn-sm"
               style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
@@ -683,6 +724,20 @@ export default function RunDetailPage() {
             }}
           >
             Re-run failed: {rerunError}
+          </div>
+        )}
+
+        {parityMsg && (
+          <div
+            style={{
+              padding: '10px 14px',
+              borderRadius: 'var(--radius-md)',
+              background: 'rgba(59,130,246,0.12)',
+              color: 'var(--text-secondary)',
+              fontSize: '13px',
+            }}
+          >
+            {parityMsg}
           </div>
         )}
 

@@ -67,6 +67,35 @@ export default function ProjectDetailPage() {
 
   const [projectRuns, setProjectRuns] = useState<any[]>([]);
   const [isNewRunModalOpen, setIsNewRunModalOpen] = useState(false);
+  const [parityLoading, setParityLoading] = useState(false);
+  const [parityMsg, setParityMsg] = useState<string | null>(null);
+
+  const handleAuthorPageContent = async () => {
+    if (!project?.id || parityLoading) return;
+    setParityLoading(true);
+    setParityMsg(null);
+    try {
+      const res = await fetch('/api/backend/parity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: project.id.startsWith('proj-') ? project.id.replace(/^proj-/, '') : project.id,
+          fixCss: false,
+          verifyBrowser: true,
+          branch: project.branch || 'main',
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) {
+        throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      }
+      setParityMsg(`Page authored · run ${String(data.runId || '').slice(0, 8)}… — see Universal Editor evidence`);
+    } catch (err: unknown) {
+      setParityMsg(err instanceof Error ? err.message : String(err));
+    } finally {
+      setParityLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!rawId) {
@@ -263,7 +292,24 @@ export default function ProjectDetailPage() {
                   </p>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={handleAuthorPageContent}
+                    disabled={parityLoading || !project.aemAuthoringPath}
+                    title="Track B: author destination page via aem-cloud MCP (no PR required)"
+                  >
+                    {parityLoading ? 'Authoring…' : 'Author page content'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={() => setIsNewRunModalOpen(true)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <Play size={13} /> Start run
+                  </button>
                   <span className="badge badge-success" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <CheckCircle2 size={12} /> Healthy
                   </span>
@@ -273,6 +319,9 @@ export default function ProjectDetailPage() {
                 </div>
               </div>
 
+              {parityMsg ? (
+                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 12px 0' }}>{parityMsg}</p>
+              ) : null}
               {/* Badges & Indicators */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', paddingTop: '16px', borderTop: '1px solid var(--border-subtle)' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '4px 10px', background: 'var(--color-success-dim)', color: 'var(--color-success)', borderRadius: 'var(--radius-sm)', border: '1px solid #22c55e33', fontWeight: 600 }}>

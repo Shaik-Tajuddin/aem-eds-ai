@@ -213,11 +213,14 @@ export class AccessibilityAgent extends BaseAgent {
       const entries = Object.entries(live);
       const total = entries.reduce((n, [, v]) => n + v.a11yViolations, 0);
       const mode = entries.some(([, v]) => v.a11yMode === 'axe') ? 'axe' : 'heuristic';
-      const status = total === 0 ? 'PASS' : 'FAIL';
+      const advisory = context.previewContentReady === false;
+      const status = advisory ? 'SKIPPED' : total === 0 ? 'PASS' : 'FAIL';
       const ev = evidence(
         'accessibility',
         status,
-        `Live accessibility (${mode}): ${total} violation(s) across ${entries.length} viewport(s)`,
+        advisory
+          ? `Live accessibility advisory only (${mode}): ${total} violation(s) — preview content not ready; not gating.`
+          : `Live accessibility (${mode}): ${total} violation(s) across ${entries.length} viewport(s)`,
         'live',
         { violationCount: total, a11yMode: mode },
       );
@@ -227,7 +230,11 @@ export class AccessibilityAgent extends BaseAgent {
         decision: this.createDecision(
           context,
           'Accessibility audit',
-          [`Live ${mode} evidence from Playwright`],
+          [
+            advisory
+              ? 'Advisory: path-aware preview lacks authored block content'
+              : `Live ${mode} evidence from Playwright`,
+          ],
           ev.summary,
         ),
       };

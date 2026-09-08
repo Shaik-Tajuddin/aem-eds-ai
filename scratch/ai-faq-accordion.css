@@ -1,0 +1,68 @@
+﻿.accordion details {
+  border-bottom: 1px sol
+id #d8d8d8;
+}
+
+.accordion summary {
+  display
+: flex;
+  align-items: center;
+  justify-cont
+ent: space-between;
+  gap: 1rem;
+  padding: 1
+rem 0;
+  font-family: 'Source Sans Pro', sans
+-serif;
+  font-size: 1rem;
+  font-weight: 600
+;
+  cursor: pointer;
+  list-style: none;
+}
+
+.
+accordion summary::-webkit-details-marker {
+ 
+ display: none;
+}
+
+.accordion summary::after 
+{
+  content: '+';
+  font-size: 1.4rem;
+  font
+-weight: 300;
+  color: #202020;
+  flex-shrink
+: 0;
+}
+
+.accordion details[open] summary::aft
+er {
+  content: '\u2013';
+}
+
+.accordion .acco
+rdion-panel {
+  padding: 0 0 1.25rem;
+  font-
+family: 'Source Sans Pro', sans-serif;
+  font
+-size: 1rem;
+  line-height: 1.6;
+  color: #40
+4040;
+}
+
+.accordion .accordion-panel p {
+  ma
+rgin: 0 0 0.75rem;
+}
+
+.accordion .accordion-p
+anel p:last-child {
+  margin-bottom: 0;
+}
+
+

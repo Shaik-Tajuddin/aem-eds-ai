@@ -84,6 +84,9 @@ export default function UniversalEditorDashboard() {
   const [live, setLive] = useState<UeAuthoringResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [parityLoading, setParityLoading] = useState(false);
+  const [parityMsg, setParityMsg] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -112,7 +115,7 @@ export default function UniversalEditorDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [currentProject?.id]);
+  }, [currentProject?.id, refreshKey]);
 
   const blocks = useMemo(() => {
     const list = live?.byBlock || [];
@@ -171,7 +174,42 @@ export default function UniversalEditorDashboard() {
               {currentProject?.name || 'All projects'} · {authoringPath || 'not configured'}
             </code>
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={!currentProject?.id || parityLoading}
+              title="Track B: MCP author destination page (no PR required)"
+              onClick={async () => {
+                if (!currentProject?.id) return;
+                setParityLoading(true);
+                setParityMsg(null);
+                try {
+                  const res = await fetch('/api/backend/parity', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      projectId: currentProject.id,
+                      fixCss: false,
+                      verifyBrowser: true,
+                      branch: currentProject.branch || 'main',
+                    }),
+                  });
+                  const data = await res.json().catch(() => ({}));
+                  if (!res.ok || data.ok === false) {
+                    throw new Error(data.error || data.message || `HTTP ${res.status}`);
+                  }
+                  setParityMsg(`Parity OK · run ${String(data.runId || '').slice(0, 8)}…`);
+                  setRefreshKey((k) => k + 1);
+                } catch (err: unknown) {
+                  setParityMsg(err instanceof Error ? err.message : String(err));
+                } finally {
+                  setParityLoading(false);
+                }
+              }}
+            >
+              {parityLoading ? 'Authoring…' : 'Author page content'}
+            </button>
             <Link href="/dashboard/runs" className="btn btn-ghost btn-sm">
               View runs
             </Link>
@@ -179,7 +217,7 @@ export default function UniversalEditorDashboard() {
               href="https://experience.adobe.net/#/sites/author/universal-editor"
               target="_blank"
               rel="noreferrer"
-              className="btn btn-primary btn-sm"
+              className="btn btn-ghost btn-sm"
               style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
             >
               <ExternalLink size={12} /> Launch UE
@@ -187,6 +225,11 @@ export default function UniversalEditorDashboard() {
           </div>
         </div>
 
+        {parityMsg ? (
+          <div className="card" style={{ padding: '14px 18px', marginBottom: '16px', color: 'var(--text-secondary)' }}>
+            {parityMsg}
+          </div>
+        ) : null}
         {error ? (
           <div className="card" style={{ padding: '14px 18px', marginBottom: '16px', color: 'var(--color-danger, #ef4444)' }}>
             Failed to load UE evidence: {error}

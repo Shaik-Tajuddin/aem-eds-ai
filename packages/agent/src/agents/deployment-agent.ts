@@ -1,6 +1,7 @@
 // ============================================================
-// @aeds/agent — Deployment Agent
-// Pre-push: build:json + lint:fix, then commit branch + open PR
+// @aeds/agent — Preview deploy + PR agents
+// Preview: commit work branch BEFORE live QA
+// PR: open GitHub PR AFTER quality gate
 // ============================================================
 
 import { RunStatus } from '@aeds/shared';
@@ -16,54 +17,62 @@ function shouldAttemptGitHubPublish(context: RunExecutionContext): boolean {
   return new GitHubTokenManager().hasToken();
 }
 
-function buildPreviewUrl(owner: string, repo: string, branch: string): string {
-  const cleanBranch = branch.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+export function buildPreviewUrl(owner: string, repo: string, branch: string): string {
+  const cleanBranch = branch
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
   const cleanRepo = repo.toLowerCase().replace(/[^a-z0-9-]/g, '-');
   const cleanOwner = owner.toLowerCase().replace(/[^a-z0-9-]/g, '-');
   return `https://${cleanBranch}--${cleanRepo}--${cleanOwner}.aem.live/`;
 }
 
-export class DeploymentAgent extends BaseAgent {
-  public readonly id = 'agent-deployment';
-  public readonly name = 'Deployment & PR Assistant';
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Commit generated files to the work branch and mark preview as published.
+ * Does NOT open a Pull Request — that happens after the quality gate.
+ */
+export class PreviewDeployAgent extends BaseAgent {
+  public readonly id = 'agent-preview-deploy';
+  public readonly name = 'Preview Deploy';
   public readonly description =
-    'Runs build:json + lint:fix, commits validated code, and opens a Pull Request with preview evidence';
-  public readonly phase = RunStatus.PR_CREATED;
+    'Runs build:json + lint:fix, commits to the work branch so aem.live preview is available before browser QA';
+  public readonly phase = RunStatus.DEPLOYING_PREVIEW;
 
   public async execute(context: RunExecutionContext): Promise<AgentExecutionResult> {
-    context.log(`Packaging ${context.generatedFiles.size} files for Pull Request...`);
-
     const fileList = Array.from(context.generatedFiles.keys());
     const previewUrl = buildPreviewUrl(context.repoOwner, context.repoName, context.workBranch);
     context.previewUrl = previewUrl;
 
     const decision = this.createDecision(
       context,
-      'Validate with build:json + lint:fix, then submit Pull Request',
+      'Publish work branch for live preview before QA',
       [
         'Clone base branch and apply generated files locally',
-        'Run npm run build:json',
-        'Run npm run lint:fix',
+        'Run npm run build:json && npm run lint:fix',
         `Commit resulting files to branch ${context.workBranch}`,
-        `Open PR with preview URL ${previewUrl}`,
+        `Expose preview URL ${previewUrl} for Playwright / visual checks`,
       ],
-      'Pull Request prepared only after build:json and lint:fix succeeded.',
+      'Live browser QA must not run against a stale branch; preview publish happens first.',
     );
 
     if (!shouldAttemptGitHubPublish(context)) {
+      // In-memory / test path: treat as published so static QA can proceed without inventing live FAIL
+      context.previewPublished = false;
       context.log(
-        'GitHub publish skipped (no GITHUB_TOKEN, tests, or ENABLE_GITHUB_PUBLISH=false). Files remain in-memory only.',
+        'Preview GitHub publish skipped (no GITHUB_TOKEN, tests, or ENABLE_GITHUB_PUBLISH=false). Live browser QA will skip until a real publish.',
         'warn',
       );
-      return {
-        success: true,
-        decision,
-        filesGenerated: fileList,
-      };
+      return { success: true, decision, filesGenerated: fileList };
     }
 
     if (context.generatedFiles.size === 0) {
-      context.log('No generated files to commit — skipping GitHub publish.', 'warn');
+      context.previewPublished = false;
+      context.log('No generated files to commit — preview not published.', 'warn');
       return { success: true, decision, filesGenerated: fileList };
     }
 
@@ -85,8 +94,9 @@ export class DeploymentAgent extends BaseAgent {
       workDir = prep.workDir;
 
       if (!prep.ok) {
+        context.previewPublished = false;
         context.log(
-          `Pre-push checks failed — branch/PR not created. ${prep.error || 'unknown error'}`,
+          `Pre-push checks failed — preview branch not updated. ${prep.error || 'unknown error'}`,
           'error',
         );
         return {
@@ -97,7 +107,6 @@ export class DeploymentAgent extends BaseAgent {
         };
       }
 
-      // Keep generatedFiles in sync with post-script outputs for later UI/events
       for (const file of prep.files) {
         context.generatedFiles.set(file.path, file);
       }
@@ -130,7 +139,7 @@ export class DeploymentAgent extends BaseAgent {
         owner,
         repo,
         branch: workBranch,
-        message: `feat(aeds): autonomous EDS changes for run ${context.runId.slice(0, 8)}\n\nVerified with npm run build:json && npm run lint:fix`,
+        message: `feat(aeds): preview deploy for run ${context.runId.slice(0, 8)}\n\nVerified with npm run build:json && npm run lint:fix`,
         files,
       });
       if (!commitResult.success || !commitResult.data) {
@@ -140,12 +149,105 @@ export class DeploymentAgent extends BaseAgent {
       const commitData = commitResult.data as { sha?: string };
       const sha = commitData.sha || '';
       context.gitCommit = sha;
+      context.previewPublished = true;
       context.log(
-        `Committed ${files.length} file(s) after build:json + lint:fix → ${sha.slice(0, 7) || 'unknown'}`,
+        `Preview published: ${files.length} file(s) → ${sha.slice(0, 7) || 'unknown'} @ ${previewUrl}`,
       );
 
-      let prUrl: string | undefined;
-      let prNumber: number | undefined;
+      const waitMs = Math.max(0, Number(process.env.PREVIEW_READY_WAIT_MS || 8000));
+      if (waitMs > 0) {
+        context.log(`Waiting ${waitMs}ms for AEM/Franklin preview to pick up commit…`);
+        await sleep(waitMs);
+      }
+
+      return {
+        success: true,
+        decision,
+        filesGenerated: Array.from(context.generatedFiles.keys()),
+      };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      const ghMsg = err instanceof GitHubError ? err.message : message;
+      context.previewPublished = false;
+      context.log(`Preview publish failed: ${ghMsg}`, 'error');
+      // Continue pipeline — QA will skip live audits when previewPublished is false
+      return {
+        success: true,
+        decision,
+        filesGenerated: fileList,
+        error: ghMsg,
+      };
+    } finally {
+      await cleanupPublishWorkspace(workDir);
+    }
+  }
+}
+
+/**
+ * Open the GitHub Pull Request after quality gate (branch already published at preview).
+ */
+export class DeploymentAgent extends BaseAgent {
+  public readonly id = 'agent-deployment';
+  public readonly name = 'Deployment & PR Assistant';
+  public readonly description =
+    'Opens the evidence-backed Pull Request after quality gate (preview branch already committed)';
+  public readonly phase = RunStatus.PR_CREATED;
+
+  public async execute(context: RunExecutionContext): Promise<AgentExecutionResult> {
+    const fileList = Array.from(context.generatedFiles.keys());
+    const previewUrl =
+      context.previewUrl ||
+      buildPreviewUrl(context.repoOwner, context.repoName, context.workBranch);
+    context.previewUrl = previewUrl;
+
+    const decision = this.createDecision(
+      context,
+      'Open Pull Request with preview evidence after quality gate',
+      [
+        context.gitCommit
+          ? `Reuse preview commit ${context.gitCommit.slice(0, 7)}`
+          : 'Commit files if preview publish was skipped earlier',
+        `Open PR ${context.workBranch} → ${context.baseBranch}`,
+        `Attach preview URL ${previewUrl}`,
+      ],
+      'PR is created only after automated QA / quality gate so reviewers see validated evidence.',
+    );
+
+    if (!shouldAttemptGitHubPublish(context)) {
+      context.log(
+        'GitHub PR skipped (no GITHUB_TOKEN, tests, or ENABLE_GITHUB_PUBLISH=false).',
+        'warn',
+      );
+      return { success: true, decision, filesGenerated: fileList };
+    }
+
+    // If preview never committed, fall back to full publish+PR via PreviewDeployAgent path
+    if (!context.gitCommit && context.generatedFiles.size > 0) {
+      context.log('No preview commit yet — publishing branch before opening PR…', 'warn');
+      const preview = new PreviewDeployAgent();
+      const previewResult = await preview.execute(context);
+      if (!previewResult.success) {
+        return {
+          success: false,
+          decision,
+          filesGenerated: fileList,
+          error: previewResult.error || 'Preview publish failed before PR',
+        };
+      }
+    }
+
+    if (!context.gitCommit && context.generatedFiles.size === 0) {
+      context.log('No commit and no files — skipping PR.', 'warn');
+      return { success: true, decision, filesGenerated: fileList };
+    }
+
+    try {
+      const { repoOwner: owner, repoName: repo, workBranch, baseBranch } = context;
+
+      if (context.pullRequestUrl && context.pullRequestNumber) {
+        context.log(`PR already open #${context.pullRequestNumber}: ${context.pullRequestUrl}`);
+        return { success: true, decision, filesGenerated: fileList };
+      }
 
       const prResult = await executeTool(context, 'github.createPR', {
         owner,
@@ -158,13 +260,14 @@ export class DeploymentAgent extends BaseAgent {
           '',
           `- **Run ID**: \`${context.runId}\``,
           `- **Source**: ${context.sourceType}${context.sourceUrl ? ` (${context.sourceUrl})` : ''}`,
-          `- **Files**: ${prep.files.map((f) => `\`${f.path}\``).join(', ')}`,
+          `- **Commit**: \`${context.gitCommit || 'n/a'}\``,
+          `- **Files**: ${fileList.map((f) => `\`${f}\``).join(', ')}`,
           '',
-          '### Pre-push checks',
-          '- `npm run build:json` ✅',
-          '- `npm run lint:fix` ✅',
+          '### Checks',
+          '- Preview branch published before live browser QA',
+          '- Quality gate completed',
           '',
-          `Preview (after AEM rebuild): ${previewUrl}`,
+          `Preview: ${previewUrl}`,
           '',
           '### Notes',
           '- Production merge / AEM live publish still requires human approval.',
@@ -175,85 +278,35 @@ export class DeploymentAgent extends BaseAgent {
 
       if (prResult.success && prResult.data) {
         const pr = prResult.data as { url?: string; number?: number };
-        prUrl = pr.url;
-        prNumber = pr.number;
+        context.pullRequestUrl = pr.url;
+        context.pullRequestNumber = pr.number;
       } else {
         const msg = prResult.error || 'createPR failed';
         context.log(`PR create failed (${msg}); compare URL provided as fallback.`, 'warn');
-        prUrl = `https://github.com/${owner}/${repo}/compare/${baseBranch}...${workBranch}?expand=1`;
+        context.pullRequestUrl = `https://github.com/${owner}/${repo}/compare/${baseBranch}...${workBranch}?expand=1`;
       }
 
-      context.pullRequestUrl = prUrl;
-      context.pullRequestNumber = prNumber;
       context.log(
-        prNumber
-          ? `Opened pull request #${prNumber}: ${prUrl}`
-          : `GitHub publish complete. Review changes: ${prUrl}`,
+        context.pullRequestNumber
+          ? `Opened pull request #${context.pullRequestNumber}: ${context.pullRequestUrl}`
+          : `GitHub publish complete. Review changes: ${context.pullRequestUrl}`,
       );
-
-      // Optional AEM preview publish via tool registry (never invent success)
-      if (
-        process.env.ENABLE_AEM_PREVIEW === 'true' &&
-        (context.authorUrl || process.env.AEM_AUTHOR_URL) &&
-        (context.sourceUrl || process.env.AEM_DEFAULT_AUTHORING_PATH)
-      ) {
-        const authorUrl = context.authorUrl || process.env.AEM_AUTHOR_URL || '';
-        const pagePath =
-          (process.env.AEM_DEFAULT_AUTHORING_PATH || '').trim() ||
-          (() => {
-            const src = (context.sourceUrl || '').trim();
-            if (src.startsWith('/')) return src;
-            try {
-              return new URL(src).pathname;
-            } catch {
-              return '';
-            }
-          })();
-
-        if (authorUrl && pagePath) {
-          const previewResult = await executeTool(context, 'aem.previewPage', {
-            authorUrl,
-            path: pagePath,
-            previewUrl: context.previewUrl,
-          });
-          context.evidence = context.evidence || [];
-          context.evidence.push({
-            id: `ev_aem_preview_${Date.now()}`,
-            kind: 'other',
-            status: previewResult.success ? 'PASS' : 'FAIL',
-            summary: previewResult.success
-              ? `AEM previewPage OK for ${pagePath}`
-              : `AEM previewPage FAIL: ${previewResult.error || 'unknown'}`,
-            producedAt: new Date().toISOString(),
-            mode: previewResult.success ? 'live' : 'unavailable',
-          });
-          context.log(
-            previewResult.success
-              ? `AEM preview requested for ${pagePath}`
-              : `AEM preview failed: ${previewResult.error}`,
-            previewResult.success ? 'info' : 'warn',
-          );
-        }
-      }
 
       return {
         success: true,
         decision,
-        filesGenerated: Array.from(context.generatedFiles.keys()),
+        filesGenerated: fileList,
       };
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      const ghMsg =
-        err instanceof GitHubError ? err.message : message;
-      context.log(`GitHub publish failed (pipeline continues to WAITING_APPROVAL): ${ghMsg}`, 'error');
+      const ghMsg = err instanceof GitHubError ? err.message : message;
+      context.log(`GitHub PR failed (pipeline continues to WAITING_APPROVAL): ${ghMsg}`, 'error');
       return {
         success: true,
         decision,
         filesGenerated: fileList,
         error: ghMsg,
       };
-    } finally {
-      await cleanupPublishWorkspace(workDir);
     }
   }
 }

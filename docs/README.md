@@ -23,6 +23,7 @@ Working name: **AI EDS Developer** (renameable).
 | [figma-integration.md](./figma-integration.md) | Figma REST → Design IR |
 | [universal-editor.md](./universal-editor.md) | Models, validators, authoring tester |
 | [aem-cloud-mcp-authoring-plan.md](./aem-cloud-mcp-authoring-plan.md) | AEM Cloud MCP Content Authoring Plan & MCP Configuration |
+| [aem-eds-page-parity-prompt-guide.md](./aem-eds-page-parity-prompt-guide.md) | Track A vs Track B: standalone MCP authoring, post-PR parity, dashboard `POST /api/parity` |
 | [testing.md](./testing.md) | Vitest, Playwright, axe, workers |
 | [visual-validation.md](./visual-validation.md) | pixelmatch flow and evidence rules |
 | [evaluation.md](./evaluation.md) | Benchmark tasks + evidence scoring |

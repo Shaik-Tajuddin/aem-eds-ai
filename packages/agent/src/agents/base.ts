@@ -59,6 +59,21 @@ export interface RunExecutionContext {
   pullRequestNumber?: number;
   gitCommit?: string;
   previewUrl?: string;
+  /**
+   * Path-aware preview URL used for Playwright (derived from sourceUrl + preview origin).
+   * Prefer this over the branch root when auditing live pages.
+   */
+  previewAuditUrl?: string;
+  /**
+   * False when the live preview page does not yet contain authored/generated block content
+   * (404, empty shell, or missing detected blocks). Live a11y is advisory only in that case.
+   */
+  previewContentReady?: boolean;
+  /**
+   * True when the work branch was successfully committed for aem.live preview.
+   * Live Playwright QA must not treat a speculative preview URL as deployed code.
+   */
+  previewPublished?: boolean;
   /** Optional baseline PNG URL for visual comparison */
   visualBaselineUrl?: string;
   log: (message: string, level?: 'info' | 'warn' | 'error') => void;

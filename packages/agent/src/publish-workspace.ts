@@ -9,6 +9,7 @@ import { join, dirname } from 'node:path';
 import { spawn } from 'node:child_process';
 import { simpleGit } from 'simple-git';
 import type { GeneratedFile } from './agents/base.js';
+import { applyStylelintResidualFixes } from './stylelint-autofix.js';
 
 export interface PublishWorkspaceResult {
   ok: boolean;
@@ -63,6 +64,36 @@ async function pathExists(path: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function commandLog(result: { stdout: string; stderr: string; code: number }, max = 6000): string {
+  const combined = `${result.stdout || ''}\n${result.stderr || ''}`.trim();
+  const tail = combined.slice(-max);
+  return `exit=${result.code}\n${tail || '(no npm output captured)'}`;
+}
+
+async function npmInstallWithRetry(
+  npmCmd: string,
+  workDir: string,
+  env: NodeJS.ProcessEnv,
+  log: (message: string, level?: 'info' | 'warn' | 'error') => void,
+): Promise<{ code: number; stdout: string; stderr: string }> {
+  const args = ['install', '--ignore-scripts', '--no-audit', '--no-fund'];
+  let install = await runCommand(npmCmd, args, workDir, env, 15 * 60 * 1000);
+  if (install.code === 0) return install;
+
+  log(
+    `npm install failed (exit ${install.code}) — retrying with --legacy-peer-deps…`,
+    'warn',
+  );
+  install = await runCommand(
+    npmCmd,
+    [...args, '--legacy-peer-deps'],
+    workDir,
+    env,
+    15 * 60 * 1000,
+  );
+  return install;
 }
 
 async function writeGeneratedFiles(workDir: string, files: Map<string, GeneratedFile>): Promise<void> {
@@ -171,19 +202,13 @@ export async function preparePublishWorkspace(options: {
     };
 
     log('Running npm install (required for build:json / lint:fix)…');
-    const install = await runCommand(
-      npmCmd,
-      ['install', '--ignore-scripts', '--no-audit', '--no-fund'],
-      workDir,
-      env,
-      15 * 60 * 1000,
-    );
+    const install = await npmInstallWithRetry(npmCmd, workDir, env, log);
     if (install.code !== 0) {
       return {
         ok: false,
         workDir,
         files: [],
-        error: `npm install failed:\n${(install.stderr || install.stdout).slice(-4000)}`,
+        error: `npm install failed:\n${commandLog(install)}`,
       };
     }
 
@@ -195,21 +220,47 @@ export async function preparePublishWorkspace(options: {
         workDir,
         files: [],
         buildJsonLog: `${buildJson.stdout}\n${buildJson.stderr}`.trim(),
-        error: `npm run build:json failed:\n${(buildJson.stderr || buildJson.stdout).slice(-4000)}`,
+        error: `npm run build:json failed:\n${commandLog(buildJson)}`,
       };
     }
     log('build:json passed');
 
     log('Running npm run lint:fix…');
-    const lintFix = await runCommand(npmCmd, ['run', 'lint:fix'], workDir, env);
+    const publishDir = workDir;
+    let lintFix = await runCommand(npmCmd, ['run', 'lint:fix'], publishDir, env);
+    let lintLog = `${lintFix.stdout}\n${lintFix.stderr}`.trim();
+
+    // stylelint --fix cannot rewrite no-descending-specificity; apply residual fixes + retry
+    const maxLintRetries = Math.max(1, Number(process.env.PUBLISH_LINT_FIX_RETRIES || 3));
+    for (let attempt = 1; lintFix.code !== 0 && attempt <= maxLintRetries; attempt++) {
+      log(`lint:fix reported issues — applying residual stylelint auto-fixes (attempt ${attempt}/${maxLintRetries})…`);
+      const residual = await applyStylelintResidualFixes(
+        publishDir,
+        lintLog,
+        (abs) => readFile(abs, 'utf8'),
+        (abs, content) => writeFile(abs, content, 'utf8'),
+        (rel) => join(publishDir, rel),
+      );
+      for (const note of residual.notes) {
+        log(note, note.startsWith('Could not') ? 'warn' : 'info');
+      }
+      if (residual.fixedFiles.length === 0) {
+        log('No residual stylelint auto-fixes applied — stopping retries.', 'warn');
+        break;
+      }
+      log(`Re-running lint:fix after fixing: ${residual.fixedFiles.join(', ')}`);
+      lintFix = await runCommand(npmCmd, ['run', 'lint:fix'], publishDir, env);
+      lintLog = `${lintFix.stdout}\n${lintFix.stderr}`.trim();
+    }
+
     if (lintFix.code !== 0) {
       return {
         ok: false,
         workDir,
         files: [],
         buildJsonLog: `${buildJson.stdout}\n${buildJson.stderr}`.trim(),
-        lintFixLog: `${lintFix.stdout}\n${lintFix.stderr}`.trim(),
-        error: `npm run lint:fix failed:\n${(lintFix.stderr || lintFix.stdout).slice(-4000)}`,
+        lintFixLog: lintLog,
+        error: `npm run lint:fix failed:\n${lintLog.slice(-4000)}`,
       };
     }
     log('lint:fix passed');
@@ -221,7 +272,7 @@ export async function preparePublishWorkspace(options: {
         workDir,
         files: [],
         buildJsonLog: `${buildJson.stdout}\n${buildJson.stderr}`.trim(),
-        lintFixLog: `${lintFix.stdout}\n${lintFix.stderr}`.trim(),
+        lintFixLog: lintLog,
         error: 'Pre-push checks passed but no file changes were detected to commit.',
       };
     }
@@ -231,7 +282,7 @@ export async function preparePublishWorkspace(options: {
       workDir,
       files,
       buildJsonLog: `${buildJson.stdout}\n${buildJson.stderr}`.trim(),
-      lintFixLog: `${lintFix.stdout}\n${lintFix.stderr}`.trim(),
+      lintFixLog: lintLog,
     };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

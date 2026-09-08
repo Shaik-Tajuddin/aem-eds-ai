@@ -166,10 +166,34 @@ function looksLikeLoginWall(title: string, finalUrl: string, html: string): bool
 }
 
 /** Map /content/<site>/foo/bar.html → /foo/bar for aem.live */
-function contentPathToLivePath(pathname: string): string | null {
+export function contentPathToLivePath(pathname: string): string | null {
   const m = pathname.match(/^\/content\/[^/]+(\/.+?)(?:\.html)?\/?$/i);
   if (!m?.[1]) return null;
   return m[1].replace(/\/$/, '') || '/';
+}
+
+/**
+ * Join aem.live branch origin with the EDS path derived from an AEM source URL.
+ * Example: https://ai-faq--repo--owner.aem.live + /content/wknd/.../faqs.html
+ *       → https://ai-faq--repo--owner.aem.live/language-masters/en/faqs
+ */
+export function buildPreviewPageUrl(previewBaseUrl: string, sourceUrl?: string): string {
+  const base = (previewBaseUrl || '').replace(/\/$/, '');
+  if (!base) return sourceUrl || '';
+  if (!sourceUrl) return `${base}/`;
+
+  try {
+    const { pathname } = new URL(sourceUrl);
+    const fromContent = contentPathToLivePath(pathname);
+    if (fromContent) return `${base}${fromContent}`;
+
+    // Non-/content paths (already EDS-like)
+    const clean = pathname.replace(/\.html$/i, '').replace(/\/$/, '') || '/';
+    if (clean !== '/') return `${base}${clean.startsWith('/') ? clean : `/${clean}`}`;
+  } catch {
+    // fall through
+  }
+  return `${base}/`;
 }
 
 /**

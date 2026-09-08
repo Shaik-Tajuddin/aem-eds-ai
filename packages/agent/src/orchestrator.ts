@@ -15,7 +15,7 @@ import { EdsDeveloperAgent } from './agents/eds-developer.js';
 import { UniversalEditorAgent } from './agents/ue-agent.js';
 import { QAValidationAgent } from './agents/qa-agent.js';
 import { FixAgent } from './agents/fix-agent.js';
-import { DeploymentAgent } from './agents/deployment-agent.js';
+import { DeploymentAgent, PreviewDeployAgent } from './agents/deployment-agent.js';
 import { BuildValidationAgent } from './agents/build-agent.js';
 import {
   VisualValidationAgent,
@@ -119,6 +119,7 @@ export class AgentOrchestrator {
     }
     this.registerAgent(new UniversalEditorAgent());
     this.registerAgent(new BuildValidationAgent());
+    this.registerAgent(new PreviewDeployAgent());
     this.registerAgent(new QAValidationAgent());
     this.registerAgent(new VisualValidationAgent());
     this.registerAgent(new AccessibilityAgent());
@@ -287,9 +288,8 @@ export class AgentOrchestrator {
         } else {
           // Stages without a dedicated agent — emit explicit SKIPPED evidence, never fake PASS
           const skipPhases: Partial<Record<RunStatus, string>> = {
-            [RunStatus.DEPLOYING_PREVIEW]:
-              'Preview deploy stage has no dedicated agent in this run; GitHub branch/PR evidence is recorded at PR_CREATED when configured.',
-            [RunStatus.WAITING_APPROVAL]: 'Waiting for human approval before production merge / AEM live publish.',
+            [RunStatus.WAITING_APPROVAL]:
+              'Waiting for human approval before production merge / AEM live publish.',
           };
           const msg = skipPhases[targetPhase] || `Completed stage ${label} (no dedicated agent)`;
           context.log(msg);
@@ -344,8 +344,10 @@ export class AgentOrchestrator {
               currentStage: PIPELINE_STAGE_LABELS[RunStatus.FIXING],
             });
             const fixAgent = this.agents.get(RunStatus.FIXING);
+            let regeneratedFiles = 0;
             if (fixAgent) {
               const fixResult = await fixAgent.execute(context);
+              regeneratedFiles = fixResult.filesGenerated?.length ?? 0;
               if (fixResult.decision) {
                 this.decisions.push(fixResult.decision);
               }
@@ -356,6 +358,15 @@ export class AgentOrchestrator {
               status: RunStatus.FIXING,
               currentStage: PIPELINE_STAGE_LABELS[RunStatus.FIXING],
             });
+
+            // Re-publish preview after code fixes so regression QA does not hit a stale branch
+            const previewAgent = this.agents.get(RunStatus.DEPLOYING_PREVIEW);
+            if (previewAgent && regeneratedFiles > 0) {
+              context.log(
+                `Self-healing: Re-publishing preview after ${regeneratedFiles} regenerated file(s)…`,
+              );
+              await previewAgent.execute(context);
+            }
 
             await this.stateMachine.transition(RunStatus.REGRESSION_TESTING);
             await this.emit(AgentEventType.AGENT_STEP_STARTED, {

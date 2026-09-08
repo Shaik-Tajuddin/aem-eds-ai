@@ -17,6 +17,8 @@
   },
   "dependencies": {
     "@aeds/agent": "*",
+    "@aeds/aem": "*",
+    "@aeds/browser": "*",
     "@aeds/database": "*",
     "@aeds/github": "*",
     "@aeds/llm": "*",

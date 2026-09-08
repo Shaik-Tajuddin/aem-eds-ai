@@ -19,6 +19,7 @@ import { knowledgePlugin } from './routes/knowledge.js';
 import { toolsPlugin } from './routes/tools.js';
 import { usagePlugin } from './routes/usage.js';
 import { uePlugin } from './routes/ue.js';
+import { parityPlugin } from './routes/parity.js';
 
 const isDev = process.env['NODE_ENV'] !== 'production';
 const port = Number(process.env['API_PORT'] ?? 3001);
@@ -102,6 +103,8 @@ export async function buildServer() {
         { name: 'runs', description: 'Agent runs' },
         { name: 'events', description: 'Real-time event streams' },
         { name: 'github', description: 'GitHub integration' },
+        { name: 'ue', description: 'Universal Editor evidence' },
+        { name: 'parity', description: 'Track B MCP page authoring / parity' },
       ],
       components: {
         securitySchemes: {
@@ -139,6 +142,7 @@ export async function buildServer() {
   await server.register(toolsPlugin, { prefix: '/api/tools' });
   await server.register(usagePlugin, { prefix: '/api/usage' });
   await server.register(uePlugin, { prefix: '/api/ue' });
+  await server.register(parityPlugin, { prefix: '/api/parity' });
 
   return server;
 }

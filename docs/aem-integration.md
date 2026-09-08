@@ -48,6 +48,18 @@ Disabled/unconfigured → explicit error (never fake SUCCESS).
 
 `jcr-export.ts` produces structured page/component text for LLM context and strips sensitive binary properties.
 
+## Adobe MCP (Track B page authoring)
+
+- **Read capture (Track A):** `mcp-page-content.ts` → `content-readonly` + `AEM_MCP_ACCESS_TOKEN`
+- **Write authoring (Track B):** `mcp-session.ts` / `mcp-write.ts` / `page-parity.ts` → `read-api` / `write-api` on `AEM_MCP_WRITE_URL` (default `https://mcp.adobeaemcloud.com/adobe/mcp/aem`)
+- **HTTP:** `POST /api/parity` with `projectId` (standalone) or `runId` (post-PR). Dashboard CTAs on project, UE, and run detail pages.
+- Full workflow: [aem-eds-page-parity-prompt-guide.md](./aem-eds-page-parity-prompt-guide.md)
+
+```bash
+AEM_MCP_ACCESS_TOKEN=   # OAuth from Cursor aem-cloud login
+AEM_MCP_WRITE_URL=https://mcp.adobeaemcloud.com/adobe/mcp/aem
+```
+
 ## Feature flags
 
 Live UE browser authoring and Cloud Manager pipelines remain feature-flagged until credentials and policy allow them.

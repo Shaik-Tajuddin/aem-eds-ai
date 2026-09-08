@@ -17,7 +17,7 @@ export { BaseAgent } from './agents/base.js';
 export type { RunExecutionContext, AgentExecutionResult, GeneratedFile } from './agents/base.js';
 export { ProjectAnalyzerAgent } from './agents/project-analyzer.js';
 export { ArchitectureAgent } from './agents/architecture-agent.js';
-export { EdsDeveloperAgent } from './agents/eds-developer.js';
+export { EdsDeveloperAgent, missingBlockAssets, implementationBlockNames } from './agents/eds-developer.js';
 export { AntigravityDeveloperAgent } from './agents/antigravity-agent.js';
 export { UniversalEditorAgent } from './agents/ue-agent.js';
 export { QAValidationAgent } from './agents/qa-agent.js';
@@ -29,7 +29,7 @@ export {
   PerformanceAgent,
   QualityGateAgent,
 } from './agents/validation-agents.js';
-export { runLiveBrowserAudit } from './live-browser-audit.js';
+export { runLiveBrowserAudit, resolveLiveAuditUrl, isPreviewContentReady } from './live-browser-audit.js';
 export type { LiveBrowserAuditResult } from './live-browser-audit.js';
 export {
   preparePublishWorkspace,
@@ -37,12 +37,19 @@ export {
 } from './publish-workspace.js';
 export type { PublishWorkspaceResult } from './publish-workspace.js';
 export {
+  parseDescendingSpecificityIssues,
+  reorderDescendingSpecificity,
+  applyStylelintResidualFixes,
+} from './stylelint-autofix.js';
+export {
   captureReferencePage,
   buildReferenceFallbackUrls,
   buildReferenceFetchCandidates,
   resolveReferenceSourceUrl,
   isAemAuthorUrl,
   buildAuthoringPageUrl,
+  contentPathToLivePath,
+  buildPreviewPageUrl,
 } from './reference-capture.js';
 export type { ReferenceSnapshot, ReferenceCaptureOptions } from './reference-capture.js';
 export { createDefaultToolRegistry, listDefaultToolNames } from './create-tool-registry.js';
@@ -53,4 +60,4 @@ export { validateLiveUeAuthoringCycle } from './live-ue-authoring.js';
 export type { LiveUeAuthoringResult } from './live-ue-authoring.js';
 export { verifyUeReopenViaContent } from './ue-reopen-content.js';
 export type { UeContentReopenResult, ContentReopenStatus } from './ue-reopen-content.js';
-export { DeploymentAgent } from './agents/deployment-agent.js';
+export { DeploymentAgent, PreviewDeployAgent, buildPreviewUrl } from './agents/deployment-agent.js';

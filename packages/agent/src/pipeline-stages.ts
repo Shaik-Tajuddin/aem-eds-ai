@@ -4,14 +4,18 @@
 
 import { RunStatus } from '@aeds/shared';
 
-/** Happy-path stages executed by AgentOrchestrator (excludes heal-loop + terminal wait). */
+/**
+ * Happy-path stages executed by AgentOrchestrator.
+ * UE models are authored before preview publish so live QA sees complete artifacts.
+ * PR opens only after quality gate.
+ */
 export const PIPELINE_STAGE_ORDER: RunStatus[] = [
   RunStatus.ANALYZING,
   RunStatus.PLANNING,
   RunStatus.IMPLEMENTING,
   RunStatus.BUILDING,
-  RunStatus.DEPLOYING_PREVIEW,
   RunStatus.UE_AUTHORING,
+  RunStatus.DEPLOYING_PREVIEW,
   RunStatus.FUNCTIONAL_TESTING,
   RunStatus.VISUAL_VALIDATION,
   RunStatus.ACCESSIBILITY,

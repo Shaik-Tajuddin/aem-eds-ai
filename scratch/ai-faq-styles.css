@@ -1,0 +1,603 @@
+﻿/*
+ * Copyright 2020 Adobe. All rights reser
+ved.
+ * This file is licensed to you under t
+he Apache License, Version 2.0 (the "License"
+);
+ * you may not use this file except in co
+mpliance with the License. You may obtain a c
+opy
+ * of the License at http://www.apache.o
+rg/licenses/LICENSE-2.0
+ *
+ * Unless requir
+ed by applicable law or agreed to in writing,
+ software distributed under
+ * the License i
+s distributed on an "AS IS" BASIS, WITHOUT WA
+RRANTIES OR REPRESENTATIONS
+ * OF ANY KIND, 
+either express or implied. See the License fo
+r the specific language
+ * governing permiss
+ions and limitations under the License.
+ */
+
+
+:root {
+  /* colors */
+  --background-co
+lor: white;
+  --light-color: #f8f8f8;
+  --d
+ark-color: #505050;
+  --text-color: #131313;
+
+  --link-color: #3b63fb;
+  --link-hover-co
+lor: #1d3ecf;
+
+  /* fonts */
+  --body-font
+-family: roboto, roboto-fallback, sans-serif;
+
+  --heading-font-family: roboto-condensed, 
+roboto-condensed-fallback, sans-serif;
+
+  /
+* body sizes */
+  --body-font-size-m: 22px;
+
+  --body-font-size-s: 19px;
+  --body-font-s
+ize-xs: 17px;
+
+  /* heading sizes */
+  --h
+eading-font-size-xxl: 55px;
+  --heading-font
+-size-xl: 44px;
+  --heading-font-size-l: 34p
+x;
+  --heading-font-size-m: 27px;
+  --headi
+ng-font-size-s: 24px;
+  --heading-font-size-
+xs: 22px;
+
+  /* nav height */
+  --nav-heig
+ht: 64px;
+}
+
+/* fallback fonts */
+@font-f
+ace {
+  font-family: roboto-condensed-fallba
+ck;
+  size-adjust: 88.82%;
+  src: local('Ar
+ial');
+}
+
+@font-face {
+  font-family: rob
+oto-fallback;
+  size-adjust: 99.529%;
+  src
+: local('Arial');
+}
+
+@media (width >= 900p
+x) {
+  :root {
+    /* body sizes */
+    --
+body-font-size-m: 18px;
+    --body-font-size
+-s: 16px;
+    --body-font-size-xs: 14px;
+
+
+    /* heading sizes */
+    --heading-font-s
+ize-xxl: 45px;
+    --heading-font-size-xl: 3
+6px;
+    --heading-font-size-l: 28px;
+    -
+-heading-font-size-m: 22px;
+    --heading-fo
+nt-size-s: 20px;
+    --heading-font-size-xs:
+ 18px;
+  }
+}
+
+body {
+  display: none;
+ 
+ margin: 0;
+  background-color: var(--backgr
+ound-color);
+  color: var(--text-color);
+  
+font-family: var(--body-font-family);
+  font
+-size: var(--body-font-size-m);
+  line-heigh
+t: 1.6;
+}
+
+body.appear {
+  display: block
+;
+}
+
+header {
+  height: var(--nav-height)
+;
+}
+
+header .header,
+footer .footer {
+  
+visibility: hidden;
+}
+
+header .header[data
+-block-status="loaded"],
+footer .footer[data
+-block-status="loaded"] {
+  visibility: visi
+ble;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  m
+argin-top: 0.8em;
+  margin-bottom: 0.25em;
+
+  font-family: var(--heading-font-family);
+ 
+ font-weight: 600;
+  line-height: 1.25;
+  s
+croll-margin: 40px;
+}
+
+h1 { font-size: var
+(--heading-font-size-xxl); }
+h2 { font-size:
+ var(--heading-font-size-xl); }
+h3 { font-si
+ze: var(--heading-font-size-l); }
+h4 { font-
+size: var(--heading-font-size-m); }
+h5 { fon
+t-size: var(--heading-font-size-s); }
+h6 { f
+ont-size: var(--heading-font-size-xs); }
+
+p
+,
+dl,
+ol,
+ul,
+pre,
+blockquote {
+  margi
+n-top: 0.8em;
+  margin-bottom: 0.25em;
+}
+
+
+code,
+pre {
+  font-size: var(--body-font-s
+ize-s);
+}
+
+pre {
+  padding: 16px;
+  bord
+er-radius: 8px;
+  background-color: var(--li
+ght-color);
+  overflow-x: auto;
+  white-spa
+ce: pre;
+}
+
+main > div {
+  margin: 40px 1
+6px;
+}
+
+input,
+textarea,
+select,
+button
+ {
+  font: inherit;
+}
+
+/* links */
+a:any
+-link {
+  color: var(--link-color);
+  text-
+decoration: none;
+  overflow-wrap: break-wor
+d;
+}
+
+a:hover {
+  color: var(--link-hover
+-color);
+  text-decoration: underline;
+}
+
+
+/* buttons */
+p.button-wrapper {
+  margin:
+ 12px 0;
+}
+
+a.button:any-link,
+button.but
+ton {
+  box-sizing: border-box;
+  display: 
+inline-flex;
+  align-items: center;
+  justi
+fy-content: center;
+  max-width: 100%;
+  ma
+rgin: 0;
+  border: 2px solid transparent;
+ 
+ border-radius: 2.4em;
+  padding: 0.5em 1.2e
+m;
+  font: inherit;
+  font-weight: 500;
+  
+line-height: 1.25;
+  text-decoration: none;
+
+  cursor: pointer;
+  overflow: hidden;
+  t
+ext-overflow: ellipsis;
+  white-space: nowra
+p;
+}
+
+a.button[aria-disabled="true"],
+but
+ton.button:disabled {
+  cursor: not-allowed;
+
+  pointer-events: none;
+}
+
+a.button.prim
+ary,
+button.button.primary {
+  border-color
+: var(--text-color);
+  background-color: var
+(--text-color);
+  color: var(--background-co
+lor);
+}
+
+a.button.primary:hover,
+a.button
+.primary:focus-visible,
+button.button.primar
+y:hover,
+button.button.primary:focus-visible
+ {
+  border-color: var(--dark-color);
+  bac
+kground-color: var(--dark-color);
+  color: v
+ar(--light-color);
+}
+
+a.button.primary[ari
+a-disabled="true"],
+a.button.primary[aria-di
+sabled="true"]:hover,
+a.button.primary[aria-
+disabled="true"]:focus-visible,
+button.butto
+n.primary:disabled,
+button.button.primary:di
+sabled:hover,
+button.button.primary:disabled
+:focus-visible {
+  background-color: var(--l
+ight-color);
+  border-color: var(--light-col
+or);
+  color: var(--dark-color);
+}
+
+a.but
+ton.secondary,
+button.button.secondary {
+  
+border-color: var(--text-color);
+  backgroun
+d-color: transparent;
+  color: var(--text-co
+lor);
+}
+
+a.button.secondary:hover,
+a.butt
+on.secondary:focus-visible,
+button.button.se
+condary:hover,
+button.button.secondary:focus
+-visible {
+  border-color: var(--dark-color)
+;
+  background-color: var(--light-color);
+ 
+ color: var(--dark-color);
+}
+
+a.button.sec
+ondary[aria-disabled="true"],
+a.button.secon
+dary[aria-disabled="true"]:hover,
+a.button.s
+econdary[aria-disabled="true"]:focus-visible,
+
+button.button.secondary:disabled,
+button.b
+utton.secondary:disabled:hover,
+button.butto
+n.secondary:disabled:focus-visible {
+  backg
+round-color: var(--light-color);
+  border-co
+lor: var(--light-color);
+  color: var(--dark
+-color);
+}
+
+/* high-impact call-to-action 
+*/
+a.button.accent,
+button.button.accent {
+
+  border-color: var(--link-color);
+  backgr
+ound-color: var(--link-color);
+  color: var(
+--background-color);
+}
+
+a.button.accent:ho
+ver,
+a.button.accent:focus-visible,
+button.
+button.accent:hover,
+button.button.accent:fo
+cus-visible {
+  border-color: var(--link-hov
+er-color);
+  background-color: var(--link-ho
+ver-color);
+}
+
+a.button.accent[aria-disabl
+ed="true"],
+a.button.accent[aria-disabled="t
+rue"]:hover,
+a.button.accent[aria-disabled="
+true"]:focus-visible,
+button.button.accent:d
+isabled,
+button.button.accent:disabled:hover
+,
+button.button.accent:disabled:focus-visibl
+e {
+  background-color: var(--light-color);
+
+  border-color: var(--light-color);
+  color
+: var(--dark-color);
+}
+
+main img {
+  max-
+width: 100%;
+  width: auto;
+  height: auto;
+
+}
+
+.icon {
+  display: inline-block;
+  h
+eight: 24px;
+  width: 24px;
+}
+
+.icon img 
+{
+  height: 100%;
+  width: 100%;
+}
+
+/* s
+ections */
+main > .section {
+  margin: 40px
+ 0;
+}
+
+main > .section > div {
+  max-widt
+h: 1200px;
+  margin: auto;
+  padding: 0 24p
+x;
+}
+
+main > .section:first-of-type {
+  m
+argin-top: 0;
+}
+
+@media (width >= 900px) {
+
+  main > .section > div {
+    padding: 0 3
+2px;
+  }
+}
+
+/* section metadata */
+main 
+.section.light,
+main .section.highlight {
+ 
+ background-color: var(--light-color);
+  mar
+gin: 0;
+  padding: 40px 0;
+}
+
+
+/* WKND P
+arity Headings & Typography */
+main h1#about
+-us {
+  font-size: clamp(2rem, 4vw, 3rem);
+
+  font-weight: 700;
+  color: #202020;
+  mar
+gin: 2.5rem 0 1rem;
+  letter-spacing: -0.02e
+m;
+}
+
+main h2#our-contributors {
+  positi
+on: relative;
+  font-size: clamp(1.5rem, 3vw
+, 2.25rem);
+  font-weight: 700;
+  color: #2
+02020;
+  margin: 3rem 0 1rem;
+  padding-bot
+tom: 0.75rem;
+}
+
+main h2#our-contributors:
+:after {
+  content: '';
+  position: absolut
+e;
+  bottom: 0;
+  left: 0;
+  width: 50px;
+
+  height: 4px;
+  background-color: #ffea00;
+
+  border-radius: 2px;
+}
+
+main p[data-ric
+htext-component="text"] i {
+  font-style: it
+alic;
+  font-size: 1.125rem;
+  line-height:
+ 1.7;
+  color: #555;
+  display: block;
+  m
+argin-bottom: 2rem;
+  max-width: 850px;
+}
+
+
+/* --- WKND About Us Parity --- */
+main h1
+#about-us,
+main h1 {
+  font-family: Georgia
+, 'Times New Roman', serif;
+  font-size: 2.7
+5rem;
+  font-weight: 400;
+  color: #202020;
+
+  margin: 2.5rem 0 1.5rem;
+}
+
+main h2#ou
+r-contributors,
+main h2 {
+  font-family: Ge
+orgia, 'Times New Roman', serif;
+  font-size
+: 2rem;
+  font-weight: 400;
+  color: #20202
+0;
+  margin: 2.5rem 0 0.5rem;
+  position: r
+elative;
+}
+
+main h2#our-contributors::afte
+r,
+main h2[id*="contributor"]::after {
+  co
+ntent: '';
+  display: block;
+  width: 65px;
+
+  height: 3px;
+  background-color: #ffea00
+;
+  margin-top: 10px;
+}
+
+main em,
+main p 
+em{
+  font-family: Georgia, 'Times New Roman
+', serif;
+  font-style: italic;
+  font-size
+: 1.05rem;
+  color: #202020;
+  display: inl
+ine-block;
+  margin: 0.5rem 0 1rem;
+  max-w
+idth: 800px;
+  line-height: 1.6;
+}
+
+

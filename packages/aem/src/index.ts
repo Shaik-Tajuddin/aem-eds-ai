@@ -11,6 +11,9 @@ export * from './validator.js';
 export * from './tester.js';
 export * from './jcr-export.js';
 export * from './mcp-page-content.js';
+export * from './mcp-session.js';
+export * from './mcp-write.js';
+export * from './page-parity.js';
 export * from './cloud-manager.js';
 
 export const PACKAGE_NAME = '@aeds/aem';

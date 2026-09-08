@@ -127,4 +127,18 @@ describe('Agent Orchestrator & State Machine', () => {
       expect(orchestrator.getStateMachine().getFixIterations()).toBe(1);
     });
   });
+
+  describe('pipeline stage order', () => {
+    it('publishes preview after UE models and before browser QA', async () => {
+      const { PIPELINE_STAGE_ORDER } = await import('../src/pipeline-stages.js');
+      const ue = PIPELINE_STAGE_ORDER.indexOf(RunStatus.UE_AUTHORING);
+      const preview = PIPELINE_STAGE_ORDER.indexOf(RunStatus.DEPLOYING_PREVIEW);
+      const qa = PIPELINE_STAGE_ORDER.indexOf(RunStatus.FUNCTIONAL_TESTING);
+      const pr = PIPELINE_STAGE_ORDER.indexOf(RunStatus.PR_CREATED);
+      expect(ue).toBeGreaterThan(-1);
+      expect(preview).toBeGreaterThan(ue);
+      expect(qa).toBeGreaterThan(preview);
+      expect(pr).toBeGreaterThan(qa);
+    });
+  });
 });

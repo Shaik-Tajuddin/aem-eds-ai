@@ -51,6 +51,208 @@ function fallbackBlock(name: string, snapshot?: ReferenceSnapshot): GeneratedBlo
     };
   }
 
+  if (name === 'accordion') {
+    return {
+      name,
+      js: `export default function decorate(block) {
+  const rows = [...block.children];
+  block.textContent = '';
+  block.classList.add('accordion');
+
+  rows.forEach((row, index) => {
+    const cells = [...row.children];
+    const titleCell = cells[0] || row;
+    const bodyCell = cells[1];
+
+    const details = document.createElement('details');
+    details.className = 'accordion-item';
+    if (index === 0) details.open = true;
+
+    const summary = document.createElement('summary');
+    summary.className = 'accordion-item-title';
+    summary.append(...titleCell.childNodes);
+
+    const panel = document.createElement('div');
+    panel.className = 'accordion-item-body';
+    if (bodyCell) {
+      panel.append(...bodyCell.childNodes);
+    }
+
+    details.append(summary, panel);
+    block.append(details);
+  });
+
+  block.dataset.aueType = 'component';
+  block.dataset.aueModel = 'accordion';
+}
+`,
+      css: `.accordion-wrapper { width: 100%; margin: 1.5rem 0 3rem; }
+.accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-top: 1px solid #d8d8d8;
+}
+.accordion .accordion-item {
+  border-bottom: 1px solid #d8d8d8;
+  padding: 0;
+}
+.accordion .accordion-item-title {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 0.25rem;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.15rem;
+  font-weight: 400;
+  color: #202020;
+  line-height: 1.35;
+}
+.accordion .accordion-item-title::-webkit-details-marker { display: none; }
+.accordion .accordion-item-title::after {
+  content: '+';
+  flex-shrink: 0;
+  font-size: 1.35rem;
+  font-weight: 300;
+  color: #202020;
+}
+.accordion .accordion-item[open] .accordion-item-title::after { content: '–'; }
+.accordion .accordion-item-body {
+  padding: 0 0.25rem 1.25rem;
+  color: #404040;
+  line-height: 1.6;
+}
+.accordion .accordion-item-body > *:first-child { margin-top: 0; }
+.accordion .accordion-item-body > *:last-child { margin-bottom: 0; }
+`,
+    };
+  }
+
+  if (name === 'cards') {
+    return {
+      name,
+      js: `export default function decorate(block) {
+  const rows = [...block.querySelectorAll(':scope > div')];
+  block.textContent = '';
+
+  rows.forEach((row) => {
+    const pic = row.querySelector('picture') || row.querySelector('img');
+    const textContent = row.textContent || '';
+    const m = textContent.match(/\\/content\\/experience-fragments\\/[^\\s"']+/);
+    const path = m ? m[0] : '';
+
+    let name = '';
+    let role = '';
+
+    const strong = row.querySelector('strong');
+    if (strong) {
+      name = strong.textContent.trim();
+    } else if (path) {
+      const segs = path.split('/').filter(Boolean);
+      const slug = segs.length > 1 ? segs[segs.length - 2] : segs[0];
+      name = slug.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    }
+
+    const paragraphs = [...row.querySelectorAll('p')];
+    paragraphs.forEach((p) => {
+      const txt = p.textContent.trim();
+      if (txt.includes('|')) {
+        role = txt;
+      } else if (!txt.includes('http') && !txt.includes('/content/') && txt !== name && !role) {
+        role = txt;
+      }
+    });
+
+    const card = document.createElement('div');
+    card.className = 'cards-card';
+
+    if (pic) {
+      const imgWrapper = document.createElement('div');
+      imgWrapper.className = 'cards-card-image';
+      imgWrapper.append(pic);
+      card.append(imgWrapper);
+    }
+
+    const body = document.createElement('div');
+    body.className = 'cards-card-body';
+
+    if (name) {
+      const title = document.createElement('h3');
+      title.className = 'cards-card-title';
+      title.textContent = name;
+      body.append(title);
+    }
+
+    if (role) {
+      const roleEl = document.createElement('p');
+      roleEl.className = 'cards-card-role';
+      roleEl.textContent = role;
+      body.append(roleEl);
+    }
+
+    card.append(body);
+    block.append(card);
+  });
+
+  block.dataset.aueType = 'component';
+  block.dataset.aueModel = 'cards';
+}
+`,
+      css: `.cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4rem;
+  padding: 0;
+  margin: 2rem 0 4rem 0;
+  list-style: none;
+}
+.cards-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  width: 260px;
+}
+.cards-card-image {
+  width: 164px;
+  height: 164px;
+  border-radius: 50%;
+  overflow: hidden;
+  margin: 0 auto 1.25rem auto;
+  background: #f0f0f0;
+}
+.cards-card-image picture,
+.cards-card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.cards-card-title {
+  margin: 0 0 0.35rem 0;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.5rem;
+  font-weight: 400;
+  color: #202020;
+}
+.cards-card-role {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #202020;
+}
+`,
+    };
+  }
+
   return {
     name,
     js: `export default function decorate(block) {
@@ -68,6 +270,26 @@ function fallbackBlock(name: string, snapshot?: ReferenceSnapshot): GeneratedBlo
 .${name} .${name}-row { margin: 0 0 1rem; }
 `,
   };
+}
+
+/** Block names that should get decorate() + CSS (excludes chrome/meta). */
+export function implementationBlockNames(detected?: string[]): string[] {
+  const defaults = ['hero', 'columns', 'cards'];
+  const filtered = (detected || defaults).filter(
+    (b) =>
+      !['header', 'footer', 'page-metadata', 'metadata', 'nav', 'navigation'].includes(b),
+  );
+  return filtered.length > 0 ? filtered : defaults;
+}
+
+/** True when a detected block is missing its JS decorate module. */
+export function missingBlockAssets(
+  detected: string[] | undefined,
+  generatedFiles: Map<string, { path: string }>,
+): string[] {
+  return implementationBlockNames(detected).filter(
+    (name) => !generatedFiles.has(`blocks/${name}/${name}.js`),
+  );
 }
 
 function tryParseJson(text: string): unknown | null {
@@ -250,10 +472,8 @@ export class EdsDeveloperAgent extends BaseAgent {
   public async execute(context: RunExecutionContext): Promise<AgentExecutionResult> {
     context.log('Generating EDS block implementations from reference UI/JS…');
 
-    const blockNames = (context.detectedBlocks || ['hero', 'columns', 'cards']).filter(
-      (b) =>
-        !['header', 'footer', 'page-metadata', 'metadata', 'nav', 'navigation'].includes(b),
-    );
+    const blockNames = implementationBlockNames(context.detectedBlocks);
+    context.log(`Target blocks for decorate()/CSS: ${blockNames.join(', ')}`);
     const snapshot = context.referenceSnapshot;
     const usedLlm = await this.tryGenerateWithLlm(context, blockNames, snapshot);
 
@@ -421,6 +641,10 @@ export class EdsDeveloperAgent extends BaseAgent {
       columns: 'Generate EDS block "columns" that renders richtext/intro text components.',
       cards:
         'Each experiencefragment is one card. Use the last path segment before /master as the person slug/name (e.g. stacey-roswells → "Stacey Roswells"). Build a responsive cards grid.',
+      accordion:
+        'Generate EDS block "accordion" for FAQ-style Q&A. Each row is one item: first cell = question/title, second cell = answer/body. Use <details>/<summary> (or equivalent) so items expand/collapse. First item may start open.',
+      tabs: 'Generate EDS block "tabs" with a tab list and panels from row cells.',
+      carousel: 'Generate EDS block "carousel" with slides from each row.',
     };
 
     // When MCP/JCR is present, do NOT send HTML scrape (design-doc rule)

@@ -60,7 +60,7 @@ async function main() {
       sourceType: run.source,
       sourceUrl: run.source_url,
       authorUrl: 'https://author-p149251-e1522049.adobeaemcloud.com',
-      engine: 'antigravity',
+      engine: 'default',
       skipGitHubPublish: false,
     });
 
