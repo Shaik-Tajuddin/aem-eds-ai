@@ -23,6 +23,7 @@ import {
   PerformanceAgent,
   QualityGateAgent,
 } from './agents/validation-agents.js';
+import { AntigravityDeveloperAgent } from './agents/antigravity-agent.js';
 import { createDefaultToolRegistry } from './create-tool-registry.js';
 import {
   PIPELINE_STAGE_ORDER,
@@ -55,6 +56,8 @@ export interface OrchestratorRunOptions {
   abortSignal?: AbortSignal;
   /** Skip real GitHub branch/commit/PR (used in unit tests) */
   skipGitHubPublish?: boolean;
+  /** Execution engine preference */
+  engine?: 'default' | 'antigravity';
 }
 
 export interface RunEventListener {
@@ -106,7 +109,11 @@ export class AgentOrchestrator {
     // Register phase handlers
     this.registerAgent(new ProjectAnalyzerAgent());
     this.registerAgent(new ArchitectureAgent());
-    this.registerAgent(new EdsDeveloperAgent());
+    if (process.env.AGENT_ENGINE === 'antigravity') {
+      this.registerAgent(new AntigravityDeveloperAgent());
+    } else {
+      this.registerAgent(new EdsDeveloperAgent());
+    }
     this.registerAgent(new UniversalEditorAgent());
     this.registerAgent(new BuildValidationAgent());
     this.registerAgent(new QAValidationAgent());
@@ -162,6 +169,10 @@ export class AgentOrchestrator {
     const { runId, projectId, repoOwner, repoName } = options;
     const baseBranch = options.baseBranch || 'main';
     const workBranch = options.workBranch || `aeds/run-${runId}`;
+
+    if (options.engine === 'antigravity' || process.env.AGENT_ENGINE === 'antigravity') {
+      this.registerAgent(new AntigravityDeveloperAgent());
+    }
 
     const context: RunExecutionContext = {
       runId,

@@ -17,6 +17,7 @@ export type { RunExecutionContext, AgentExecutionResult, GeneratedFile } from '.
 export { ProjectAnalyzerAgent } from './agents/project-analyzer.js';
 export { ArchitectureAgent } from './agents/architecture-agent.js';
 export { EdsDeveloperAgent } from './agents/eds-developer.js';
+export { AntigravityDeveloperAgent } from './agents/antigravity-agent.js';
 export { UniversalEditorAgent } from './agents/ue-agent.js';
 export { QAValidationAgent } from './agents/qa-agent.js';
 export { FixAgent } from './agents/fix-agent.js';
