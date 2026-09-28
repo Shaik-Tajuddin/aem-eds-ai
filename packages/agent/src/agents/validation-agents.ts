@@ -6,6 +6,7 @@
 import { RunStatus, type SystemEvidence } from '@aeds/shared';
 import { auditHtmlStatic } from '@aeds/accessibility';
 import { auditAssetBudgets } from '@aeds/performance';
+import { getSkillPromptSection } from '@aeds/agent-skills';
 import { BaseAgent, type RunExecutionContext, type AgentExecutionResult } from './base.js';
 import { executeTool } from '../execute-tool.js';
 
@@ -206,6 +207,7 @@ export class AccessibilityAgent extends BaseAgent {
 
   public async execute(context: RunExecutionContext): Promise<AgentExecutionResult> {
     context.log('Accessibility validation...');
+    context.log(getSkillPromptSection('accessibility-fix').split('\n')[0] || 'accessibility-fix skill');
 
     // Prefer live axe results already collected by QA/browser audit
     const live = context.liveBrowserAudit;
@@ -289,6 +291,7 @@ export class PerformanceAgent extends BaseAgent {
 
   public async execute(context: RunExecutionContext): Promise<AgentExecutionResult> {
     context.log('Performance validation...');
+    context.log(getSkillPromptSection('cwv-optimizer').split('\n')[0] || 'cwv-optimizer skill');
     const assets = Array.from(context.generatedFiles.values()).map((f) => ({
       path: f.path,
       content: f.content,
@@ -389,6 +392,7 @@ export class QualityGateAgent extends BaseAgent {
 
   public async execute(context: RunExecutionContext): Promise<AgentExecutionResult> {
     context.log('Evaluating quality gate from system evidence...');
+    context.log(getSkillPromptSection('publish-readiness').split('\n')[0] || 'publish-readiness skill');
     const evidenceList = context.evidence || [];
     const failed = evidenceList.filter((e) => e.status === 'FAIL');
     const unresolvedBugs = context.bugs.filter((b) => !b.resolved);

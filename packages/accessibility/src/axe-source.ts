@@ -16,8 +16,9 @@ export async function getAxeSource(): Promise<string> {
   try {
     const { createRequire } = await import('node:module');
     const { readFileSync } = await import('node:fs');
-    const require = createRequire(import.meta.url);
-    const axePath = require.resolve('axe-core/axe.min.js');
+    const path = await import('node:path');
+    const req = createRequire(path.resolve('package.json'));
+    const axePath = req.resolve('axe-core/axe.min.js');
     return readFileSync(axePath, 'utf8');
   } catch {
     return '';

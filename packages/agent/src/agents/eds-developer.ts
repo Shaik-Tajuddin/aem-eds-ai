@@ -5,6 +5,7 @@
 
 import { RunStatus } from '@aeds/shared';
 import { componentsForBlock, formatMcpComponentsForPrompt } from '@aeds/aem';
+import { getSkillPromptSection } from '@aeds/agent-skills';
 import { BaseAgent, type RunExecutionContext, type AgentExecutionResult } from './base.js';
 import type { ReferenceSnapshot } from '../reference-capture.js';
 
@@ -471,6 +472,7 @@ export class EdsDeveloperAgent extends BaseAgent {
 
   public async execute(context: RunExecutionContext): Promise<AgentExecutionResult> {
     context.log('Generating EDS block implementations from reference UI/JS…');
+    context.log(getSkillPromptSection('block-scaffolder').split('\n')[0] || 'block-scaffolder skill');
 
     const blockNames = implementationBlockNames(context.detectedBlocks);
     context.log(`Target blocks for decorate()/CSS: ${blockNames.join(', ')}`);
@@ -617,11 +619,12 @@ export class EdsDeveloperAgent extends BaseAgent {
         ? 'Input is AEM MCP/JCR page content (componentType + properties), NOT scraped HTML.'
         : 'Produce ONE EDS block from HTML/CSS hints of a reference page.',
       'Skip any page/container/layout shells if present.',
-      'Rules:',
+      'Rules (following EDS Block Scaffolder & Accessibility standards):',
       '- Vanilla ES module only: export default function decorate(block) { ... }',
-      '- CSS scoped to the block class, mobile-first, no frameworks.',
+      '- CSS scoped strictly to the block class (.<name>), mobile-first, no frameworks.',
       `- Block name must be exactly: ${blockName}`,
-      '- Map authored properties into DOM (titles, text, fragment refs as card cells).',
+      '- Map authored properties into semantic DOM (headings, picture/img, links as buttons).',
+      '- Keep interactive elements keyboard accessible (Enter/Space, visible focus).',
       '- Keep JS under ~40 lines and CSS under ~60 lines.',
       '- Reply with ONLY a single JSON object. No markdown. No prose.',
       `- Exact shape: {"name":"${blockName}","js":"export default function decorate(block) {\\n  ...\\n}","css":".${blockName} { ... }"}`,

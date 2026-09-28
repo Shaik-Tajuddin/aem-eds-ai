@@ -46,3 +46,4 @@ test-results/
 # Artifacts (screenshots, diffs)
 artifacts/
 screenshots/
+graphify-out/
