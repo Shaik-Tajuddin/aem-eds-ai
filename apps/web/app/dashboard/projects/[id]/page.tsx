@@ -47,7 +47,7 @@ export default function ProjectDetailPage() {
   const params = useParams();
   const router = useRouter();
   const rawId = (params?.id as string) || '';
-  const [project, setProject] = useState<UserProject | null>(() => (rawId ? getProjectById(rawId) : null));
+  const [project, setProject] = useState<UserProject | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   
@@ -105,6 +105,7 @@ export default function ProjectDetailPage() {
     const p = getProjectById(rawId);
     if (p) {
       setProject(p);
+      setLoading(false);
       setEditForm({
         name: p.name,
         description: p.description,
